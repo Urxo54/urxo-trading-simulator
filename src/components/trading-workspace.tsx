@@ -33,6 +33,8 @@ type Props = {
   instrument: Instrument;
   price: number | null;
   replayTime: number | null;
+  candleHigh: number | null;
+  candleLow: number | null;
   decimals: number;
 };
 
@@ -47,7 +49,7 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(value);
 }
 
-export default function TradingWorkspace({ chart, series, instrument, price, replayTime, decimals }: Props) {
+export default function TradingWorkspace({ chart, series, instrument, price, replayTime, candleHigh, candleLow, decimals }: Props) {
   const [tool, setTool] = useState<"select" | "horizontal" | "note">("select");
   const [trades, setTrades] = useState<Trade[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -90,7 +92,7 @@ export default function TradingWorkspace({ chart, series, instrument, price, rep
       let changed = false;
       const next = current.map((trade) => {
         if (trade.status !== "open" || trade.instrument !== instrument) return trade;
-        const exit = getTriggeredExit(trade.side, price, trade.stopLoss, trade.takeProfit);
+        const exit = getTriggeredExit(trade.side, price, trade.stopLoss, trade.takeProfit, candleHigh, candleLow);
         if (!exit) return trade;
         changed = true;
         return { ...trade, status: "closed" as const, closedAt: replayTime, closePrice: exit.price };
@@ -98,7 +100,7 @@ export default function TradingWorkspace({ chart, series, instrument, price, rep
       if (changed) setMessage("Сделка автоматически закрыта: достигнут уровень SL или TP.");
       return changed ? next : current;
     });
-  }, [price, replayTime, instrument]);
+  }, [price, replayTime, instrument, candleHigh, candleLow]);
 
   useEffect(() => {
     if (!series) return;
@@ -196,6 +198,44 @@ export default function TradingWorkspace({ chart, series, instrument, price, rep
     setAnnotations((current) => current.filter((item) => item.id !== id));
   }
 
+  function moveStopToBreakeven(trade: Trade) {
+    setTrades((current) => current.map((item) => item.id === trade.id
+      ? { ...item, stopLoss: item.entry }
+      : item));
+    setMessage("Stop Loss перенесён на цену входа.");
+  }
+
+  function modifyTradeLevels(trade: Trade) {
+    const nextStop = window.prompt("Новый Stop Loss (оставь пустым, чтобы убрать):", trade.stopLoss?.toString() ?? "");
+    if (nextStop === null) return;
+    const nextTarget = window.prompt("Новый Take Profit (оставь пустым, чтобы убрать):", trade.takeProfit?.toString() ?? "");
+    if (nextTarget === null) return;
+    const sl = nextStop.trim() ? Number(nextStop) : null;
+    const tp = nextTarget.trim() ? Number(nextTarget) : null;
+    if (!isValidOrderLevels(trade.side, trade.entry, sl, tp)) {
+      setMessage("Некорректные уровни SL/TP для направления сделки.");
+      return;
+    }
+    setTrades((current) => current.map((item) => item.id === trade.id
+      ? { ...item, stopLoss: sl, takeProfit: tp }
+      : item));
+    setMessage("Уровни SL/TP обновлены.");
+  }
+
+  function closeHalfTrade(trade: Trade) {
+    if (price === null || trade.volume < 0.02) {
+      setMessage("Для частичного закрытия требуется объём не менее 0.02 лота.");
+      return;
+    }
+    const closedVolume = Math.floor((trade.volume / 2) * 100) / 100;
+    setTrades((current) => current.flatMap((item) => item.id !== trade.id ? [item] : [
+      { ...item, volume: Math.round((item.volume - closedVolume) * 100) / 100 },
+      { ...item, id: crypto.randomUUID(), volume: closedVolume, status: "closed" as const,
+        closedAt: replayTime ?? Date.now(), closePrice: price, stopLoss: null, takeProfit: null },
+    ]));
+    setMessage("Частично закрыто " + closedVolume.toFixed(2) + " лота.");
+  }
+
   return (
     <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="rounded-2xl border border-white/[0.08] bg-[#0c0c0c] p-4">
@@ -260,7 +300,12 @@ export default function TradingWorkspace({ chart, series, instrument, price, rep
                 <div><p className={`text-xs font-bold ${trade.side === "BUY" ? "text-green-400" : "text-red-400"}`}>{trade.side} {instrumentLabel[trade.instrument]}</p><p className="mt-1 text-[10px] text-zinc-500">{trade.volume} lot · Entry {trade.entry.toFixed(decimals)}</p></div>
                 <div className="text-xs text-zinc-400">SL {trade.stopLoss?.toFixed(decimals) ?? "—"} <span className="mx-2 text-zinc-700">|</span> TP {trade.takeProfit?.toFixed(decimals) ?? "—"}</div>
                 <div><p className={`text-sm font-semibold tabular-nums ${pnl >= 0 ? "text-green-400" : "text-red-400"}`}>{formatMoney(pnl)}</p><p className="text-[10px] text-zinc-600">Unrealized P/L</p></div>
-                <button onClick={() => closeTrade(trade.id)} disabled={price === null} className="rounded-lg border border-white/15 px-3 py-2 text-xs text-zinc-300 hover:bg-white/10 disabled:opacity-40">Close position</button>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => modifyTradeLevels(trade)} className="rounded-lg border border-white/15 px-2.5 py-2 text-[10px] text-zinc-300 hover:bg-white/10">Modify SL/TP</button>
+                  <button onClick={() => moveStopToBreakeven(trade)} className="rounded-lg border border-white/15 px-2.5 py-2 text-[10px] text-zinc-300 hover:bg-white/10">Break even</button>
+                  <button onClick={() => closeHalfTrade(trade)} disabled={price === null || trade.volume < 0.02} className="rounded-lg border border-white/15 px-2.5 py-2 text-[10px] text-zinc-300 hover:bg-white/10 disabled:opacity-40">Close 50%</button>
+                  <button onClick={() => closeTrade(trade.id)} disabled={price === null} className="rounded-lg bg-white px-3 py-2 text-[10px] font-semibold text-black hover:bg-zinc-200 disabled:opacity-40">Close</button>
+                </div>
               </div>;
             })}
           </div>
