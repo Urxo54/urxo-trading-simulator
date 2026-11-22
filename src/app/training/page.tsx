@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/sidebar";
+import TradingWorkspace from "@/components/trading-workspace";
 import {
   CandlestickSeries,
   ColorType,
@@ -434,6 +435,15 @@ export default function TrainingPage() {
             </div>
           </div>
         </section>
+
+        <TradingWorkspace
+          chart={chartRef.current}
+          series={seriesRef.current}
+          instrument={instrument}
+          price={lastPrice === "—" ? null : Number(lastPrice)}
+          replayTime={currentReplayTime}
+          decimals={selectedInstrument.decimals}
+        />
 
         <section className="mt-4 rounded-2xl border border-white/[0.08] bg-[#0c0c0c] p-4 md:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
