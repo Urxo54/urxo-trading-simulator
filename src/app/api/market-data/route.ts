@@ -3,7 +3,6 @@ import path from "node:path";
 import { historicalMarkets, inspectHistoricalCsv } from "@/lib/market-data";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 const earliestAcceptedTimestamp = Date.UTC(2024, 0, 10);
 const latestAcceptedTimestamp = Date.UTC(2025, 11, 20);
