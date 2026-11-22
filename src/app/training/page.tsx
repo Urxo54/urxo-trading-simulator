@@ -14,9 +14,11 @@ import {
 import {
   ArrowLeft,
   BarChart3,
+  LoaderCircle,
   Maximize2,
   Minus,
   Plus,
+  RefreshCw,
   Settings2,
 } from "lucide-react";
 
@@ -27,24 +29,9 @@ const instrumentDetails: Record<
   Instrument,
   { label: string; shortLabel: string; description: string; decimals: number }
 > = {
-  eurusd: {
-    label: "EUR/USD",
-    shortLabel: "EURUSD",
-    description: "Euro / US Dollar",
-    decimals: 5,
-  },
-  xauusd: {
-    label: "Gold (XAU/USD)",
-    shortLabel: "XAUUSD",
-    description: "Gold / US Dollar",
-    decimals: 2,
-  },
-  usatechidxusd: {
-    label: "NAS100",
-    shortLabel: "NAS100",
-    description: "US 100 Tech Index",
-    decimals: 2,
-  },
+  eurusd: { label: "EUR/USD", shortLabel: "EURUSD", description: "Euro / US Dollar", decimals: 5 },
+  xauusd: { label: "Gold (XAU/USD)", shortLabel: "XAUUSD", description: "Gold / US Dollar", decimals: 2 },
+  usatechidxusd: { label: "NAS100", shortLabel: "NAS100", description: "US 100 Tech Index", decimals: 2 },
 };
 
 type HistoricalResponse = {
@@ -66,18 +53,22 @@ export default function TrainingPage() {
   const [timeframe, setTimeframe] = useState<Timeframe>("H1");
   const [lastPrice, setLastPrice] = useState("—");
   const [loading, setLoading] = useState(true);
+  const [hasData, setHasData] = useState(false);
+  const [chartReady, setChartReady] = useState(false);
   const [error, setError] = useState("");
   const [candleCount, setCandleCount] = useState(0);
   const [dateRange, setDateRange] = useState("January 2025");
+  const [retryCount, setRetryCount] = useState(0);
 
   const selectedInstrument = instrumentDetails[instrument];
 
+  // Create the chart once. Data loading starts only after the chart is ready.
   useEffect(() => {
     const container = chartContainerRef.current;
     if (!container) return;
 
     const chart = createChart(container, {
-      width: container.clientWidth,
+      width: Math.max(container.clientWidth, 320),
       height: 520,
       layout: {
         background: { type: ColorType.Solid, color: "#080808" },
@@ -90,20 +81,10 @@ export default function TrainingPage() {
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: {
-          color: "rgba(255,255,255,0.3)",
-          width: 1,
-          style: 2,
-        },
-        horzLine: {
-          color: "rgba(255,255,255,0.3)",
-          width: 1,
-          style: 2,
-        },
+        vertLine: { color: "rgba(255,255,255,0.3)", width: 1, style: 2 },
+        horzLine: { color: "rgba(255,255,255,0.3)", width: 1, style: 2 },
       },
-      rightPriceScale: {
-        borderColor: "rgba(255,255,255,0.1)",
-      },
+      rightPriceScale: { borderColor: "rgba(255,255,255,0.1)" },
       timeScale: {
         borderColor: "rgba(255,255,255,0.1)",
         timeVisible: true,
@@ -124,12 +105,12 @@ export default function TrainingPage() {
 
     chartRef.current = chart;
     seriesRef.current = series;
+    setChartReady(true);
 
     const resizeObserver = new ResizeObserver((entries) => {
-      if (!entries[0]) return;
-      chart.applyOptions({ width: entries[0].contentRect.width });
+      const width = entries[0]?.contentRect.width;
+      if (width && width > 0) chart.applyOptions({ width });
     });
-
     resizeObserver.observe(container);
 
     return () => {
@@ -137,16 +118,22 @@ export default function TrainingPage() {
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      setChartReady(false);
     };
   }, []);
 
   useEffect(() => {
+    if (!chartReady || !seriesRef.current || !chartRef.current) return;
+
     const controller = new AbortController();
+    setLoading(true);
+    setHasData(false);
+    setError("");
+    setCandleCount(0);
+    setLastPrice("—");
+    seriesRef.current.setData([]);
 
     async function loadHistoricalData() {
-      setLoading(true);
-      setError("");
-
       try {
         const response = await fetch(
           `/api/historical/${instrument}?timeframe=${timeframe}`,
@@ -155,75 +142,66 @@ export default function TrainingPage() {
         const result = (await response.json()) as HistoricalResponse;
 
         if (!response.ok) {
-          throw new Error(result.error ?? "Could not load historical data.");
+          throw new Error(result.error ?? `Data request failed (${response.status}).`);
+        }
+        if (!Array.isArray(result.candles) || result.candles.length === 0) {
+          throw new Error("No historical candles are available for this selection.");
         }
 
-        if (!seriesRef.current || !chartRef.current) return;
-
-        seriesRef.current.setData(result.candles);
-        chartRef.current.timeScale().fitContent();
-
-        const lastCandle = result.candles[result.candles.length - 1];
-        setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
-        setCandleCount(result.count);
-        setDateRange(result.dateRange);
-      } catch (loadError) {
-        if (loadError instanceof Error && loadError.name === "AbortError") {
-          return;
-        }
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : "Could not load historical data.",
+        const validCandles = result.candles.filter(
+          (candle) =>
+            Number.isFinite(Number(candle.time)) &&
+            Number.isFinite(candle.open) &&
+            Number.isFinite(candle.high) &&
+            Number.isFinite(candle.low) &&
+            Number.isFinite(candle.close),
         );
-        setLastPrice("—");
-        setCandleCount(0);
+        if (validCandles.length === 0) {
+          throw new Error("The data file did not contain valid chart candles.");
+        }
+
+        // Do not reveal the chart until valid data has actually been applied.
+        seriesRef.current?.setData(validCandles);
+        chartRef.current?.timeScale().fitContent();
+
+        const lastCandle = validCandles[validCandles.length - 1];
+        setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
+        setCandleCount(validCandles.length);
+        setDateRange(result.dateRange || "Historical data");
+        setHasData(true);
+      } catch (loadError) {
+        if (loadError instanceof Error && loadError.name === "AbortError") return;
+        setError(loadError instanceof Error ? loadError.message : "Could not load historical data.");
+        setHasData(false);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
     }
 
     void loadHistoricalData();
-
     return () => controller.abort();
-  }, [instrument, timeframe, selectedInstrument.decimals]);
+  }, [chartReady, instrument, timeframe, selectedInstrument.decimals, retryCount]);
 
   return (
     <main className="min-h-screen bg-[#080808] text-white">
       <header className="flex h-[70px] items-center justify-between border-b border-white/[0.08] px-5 md:px-8">
         <div className="flex items-center gap-4">
-          <a
-            href="/"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-zinc-400 transition hover:bg-white/10 hover:text-white"
-          >
+          <a href="/" aria-label="Back to dashboard" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-zinc-400 transition hover:bg-white/10 hover:text-white">
             <ArrowLeft size={18} />
           </a>
-
           <div>
             <h1 className="text-sm font-bold tracking-[0.16em]">URXO</h1>
-            <p className="text-[9px] tracking-[0.2em] text-zinc-500">
-              TRADING TERMINAL
-            </p>
+            <p className="text-[9px] tracking-[0.2em] text-zinc-500">TRADING TERMINAL</p>
           </div>
-
           <div className="ml-4 hidden h-8 w-px bg-white/10 sm:block" />
-
           <div className="hidden sm:block">
             <p className="text-sm font-semibold">{selectedInstrument.label}</p>
-            <p className="text-[10px] text-zinc-500">
-              {selectedInstrument.description}
-            </p>
+            <p className="text-[10px] text-zinc-500">{selectedInstrument.description}</p>
           </div>
         </div>
-
         <div className="flex items-center gap-2">
-          <span className="rounded-lg border border-white/10 px-3 py-2 text-[10px] tracking-wider text-zinc-400">
-            HISTORICAL DATA
-          </span>
-          <button
-            aria-label="Settings"
-            className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10"
-          >
+          <span className="rounded-lg border border-white/10 px-3 py-2 text-[10px] tracking-wider text-zinc-400">HISTORICAL DATA</span>
+          <button aria-label="Settings" className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10">
             <Settings2 size={17} />
           </button>
         </div>
@@ -232,45 +210,21 @@ export default function TrainingPage() {
       <div className="mx-auto max-w-[1600px] p-4 md:p-7">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs text-zinc-500">
-              Market / Historical Replay / {selectedInstrument.shortLabel}
-            </p>
-            <h2 className="mt-1 text-xl font-semibold">
-              {selectedInstrument.label}
-            </h2>
+            <p className="text-xs text-zinc-500">Market / Historical Replay / {selectedInstrument.shortLabel}</p>
+            <h2 className="mt-1 text-xl font-semibold">{selectedInstrument.label}</h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {(Object.keys(instrumentDetails) as Instrument[]).map((key) => (
-              <button
-                key={key}
-                onClick={() => setInstrument(key)}
-                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                  instrument === key
-                    ? "border-white bg-white text-black"
-                    : "border-white/10 bg-[#111111] text-zinc-500 hover:text-white"
-                }`}
-              >
-                {key === "eurusd"
-                  ? "EUR/USD"
-                  : key === "xauusd"
-                    ? "GOLD"
-                    : "NAS100"}
+              <button key={key} onClick={() => setInstrument(key)} className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${instrument === key ? "border-white bg-white text-black" : "border-white/10 bg-[#111111] text-zinc-500 hover:text-white"}`}>
+                {key === "eurusd" ? "EUR/USD" : key === "xauusd" ? "GOLD" : "NAS100"}
               </button>
             ))}
           </div>
 
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#111111] p-1">
             {(["D1", "H4", "H1"] as Timeframe[]).map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setTimeframe(tf)}
-                className={`rounded-lg px-5 py-2 text-xs font-semibold transition ${
-                  timeframe === tf
-                    ? "bg-white text-black"
-                    : "text-zinc-500 hover:text-white"
-                }`}
-              >
+              <button key={tf} onClick={() => setTimeframe(tf)} className={`rounded-lg px-5 py-2 text-xs font-semibold transition ${timeframe === tf ? "bg-white text-black" : "text-zinc-500 hover:text-white"}`}>
                 {tf}
               </button>
             ))}
@@ -284,66 +238,58 @@ export default function TrainingPage() {
               <span className="text-xs font-semibold">Price Chart</span>
               <span className="text-[10px] text-zinc-600">{timeframe}</span>
             </div>
-
             <div className="flex items-center gap-4 text-zinc-500">
-              <span className="text-xs">
-                Last <span className="text-zinc-300">{lastPrice}</span>
-              </span>
-              <button aria-label="Zoom out" className="hover:text-white">
-                <Minus size={15} />
-              </button>
-              <button aria-label="Zoom in" className="hover:text-white">
-                <Plus size={15} />
-              </button>
-              <button aria-label="Maximize chart" className="hover:text-white">
-                <Maximize2 size={15} />
-              </button>
+              <span className="text-xs">Last <span className="text-zinc-300">{lastPrice}</span></span>
+              <button aria-label="Zoom out" onClick={() => chartRef.current?.timeScale().setVisibleLogicalRange({ from: 0, to: Math.max(candleCount * 0.65, 1) })} className="hover:text-white"><Minus size={15} /></button>
+              <button aria-label="Zoom in" onClick={() => chartRef.current?.timeScale().fitContent()} className="hover:text-white"><Plus size={15} /></button>
+              <button aria-label="Fit chart" onClick={() => chartRef.current?.timeScale().fitContent()} className="hover:text-white"><Maximize2 size={15} /></button>
             </div>
           </div>
 
-          <div className="p-2 md:p-4">
-            <div ref={chartContainerRef} className="w-full" />
+          <div className="relative min-h-[520px] bg-[#080808]">
+            <div ref={chartContainerRef} className={`absolute inset-0 w-full transition-opacity ${hasData ? "opacity-100" : "pointer-events-none opacity-0"}`} />
             {loading && (
-              <p className="px-3 py-2 text-xs text-zinc-500">
-                Loading historical candles...
-              </p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-[#080808]">
+                <LoaderCircle className="animate-spin text-zinc-300" size={30} />
+                <div className="text-center">
+                  <p className="text-sm font-medium text-white">Loading historical data</p>
+                  <p className="mt-1 text-xs text-zinc-500">{selectedInstrument.label} · {timeframe}</p>
+                </div>
+                <div className="h-1 w-48 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full w-1/2 animate-pulse rounded-full bg-white/70" />
+                </div>
+              </div>
             )}
-            {error && (
-              <p className="px-3 py-2 text-xs text-red-400">{error}</p>
+            {!loading && !hasData && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+                <BarChart3 size={32} className="text-zinc-600" />
+                <p className="text-sm font-medium text-white">{error ? "Chart data could not be loaded" : "No chart data available"}</p>
+                <p className="max-w-md text-xs text-zinc-500">{error || "There are no candles for this instrument and timeframe."}</p>
+                <button onClick={() => setRetryCount((value) => value + 1)} className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/10">
+                  <RefreshCw size={14} /> Try again
+                </button>
+              </div>
             )}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] px-5 py-3">
-            <span className="text-[10px] text-zinc-600">
-              {selectedInstrument.shortLabel} · {timeframe} · Candlestick ·{" "}
-              {dateRange}
-            </span>
+            <span className="text-[10px] text-zinc-600">{selectedInstrument.shortLabel} · {timeframe} · Candlestick · {dateRange}</span>
             <div className="flex items-center gap-2 text-[10px] text-zinc-500">
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  error ? "bg-red-400" : loading ? "bg-zinc-500" : "bg-white"
-                }`}
-              />
-              {error ? "Data error" : loading ? "Loading data" : "Data loaded"}
+              <span className={`h-1.5 w-1.5 rounded-full ${error ? "bg-red-400" : loading ? "bg-zinc-500" : hasData ? "bg-white" : "bg-zinc-600"}`} />
+              {loading ? "Loading data" : error ? "Data error" : hasData ? "Data loaded" : "No data"}
             </div>
           </div>
         </section>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[
             { label: "Instrument", value: selectedInstrument.label },
             { label: "Timeframe", value: timeframe },
-            {
-              label: "Data source",
-              value: loading ? "Loading..." : error ? "Unavailable" : "Dukascopy CSV",
-            },
+            { label: "Data source", value: loading ? "Loading..." : hasData ? "Dukascopy CSV" : "Unavailable" },
             { label: "Historical period", value: dateRange },
             { label: "Candles on chart", value: loading ? "—" : String(candleCount) },
           ].map((item) => (
-            <div
-              key={item.label}
-              className="rounded-xl border border-white/[0.08] bg-[#111111] p-5"
-            >
+            <div key={item.label} className="rounded-xl border border-white/[0.08] bg-[#111111] p-5">
               <p className="text-xs text-zinc-500">{item.label}</p>
               <p className="mt-2 text-sm font-semibold">{item.value}</p>
             </div>
