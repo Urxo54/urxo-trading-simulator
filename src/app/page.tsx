@@ -1,6 +1,8 @@
 
 "use client";
 
+import { useState } from "react";
+
 import {
   Activity,
   BarChart3,
@@ -26,7 +28,75 @@ const menu = [
   { label: "History", icon: Clock3 },
 ];
 
+type ImportEvent = {
+  type: "progress" | "log" | "completed" | "done" | "error";
+  instrument?: string;
+  label?: string;
+  current?: number;
+  total?: number;
+  message?: string;
+};
+
 export default function Home() {
+  const [importing, setImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState("Ready to import January 2025.");
+  const [importProgress, setImportProgress] = useState(0);
+  const [importResults, setImportResults] = useState<string[]>([]);
+
+  async function importJanuary() {
+    setImporting(true);
+    setImportProgress(0);
+    setImportResults([]);
+    setImportStatus("Connecting to Dukascopy...");
+
+    try {
+      const response = await fetch("/api/import-january", { method: "POST" });
+      if (!response.ok || !response.body) {
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error ?? "Could not start import.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const events = buffer.split("\\n\\n");
+        buffer = events.pop() ?? "";
+
+        for (const event of events) {
+          const dataLine = event.split("\\n").find((line) => line.startsWith("data: "));
+          if (!dataLine) continue;
+          const data = JSON.parse(dataLine.slice(6)) as ImportEvent;
+
+          if (data.type === "progress") {
+            setImportStatus(data.message ?? "Downloading...");
+            setImportProgress(Math.round((((data.current ?? 1) - 1) / (data.total ?? 3)) * 100));
+            setImportResults((previous) => [...previous, data.message ?? ""]);
+          } else if (data.type === "log") {
+            setImportStatus(data.message ?? "Downloading...");
+          } else if (data.type === "completed") {
+            setImportProgress(Math.round(((data.instrument === "eurusd" ? 1 : data.instrument === "xauusd" ? 2 : 3) / 3) * 100));
+            setImportResults((previous) => [...previous, `✓ ${data.label} downloaded`]);
+          } else if (data.type === "done") {
+            setImportProgress(100);
+            setImportStatus(data.message ?? "Import complete.");
+          } else if (data.type === "error") {
+            throw new Error(data.message ?? "Import failed.");
+          }
+        }
+      }
+    } catch (error) {
+      setImportStatus(error instanceof Error ? error.message : "Import failed.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#080808] text-white">
       <aside className="fixed left-0 top-0 hidden h-screen w-[245px] border-r border-white/[0.08] bg-[#0c0c0c] p-6 lg:flex lg:flex-col">
@@ -164,16 +234,37 @@ export default function Home() {
                   <p className="mt-1 text-xs text-zinc-500">Historical CSV files</p>
                 </div>
               </div>
-              <div className="rounded-xl border border-dashed border-white/15 p-6 text-center">
-                <Database size={26} className="mx-auto text-zinc-600" />
-                <p className="mt-4 text-sm font-medium">No data imported</p>
-                <p className="mt-2 text-xs leading-5 text-zinc-600">
-                  Import historical market data to start your first simulation.
-                </p>
+              <div className="rounded-xl border border-white/10 bg-black/30 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">January 2025 · M1</p>
+                    <p className="mt-1 text-xs text-zinc-500">EUR/USD · Gold · NAS100</p>
+                  </div>
+                  <span className="rounded-md bg-white/5 px-2 py-1 text-[10px] text-zinc-300">DUKASCOPY</span>
+                </div>
+                <button
+                  onClick={importJanuary}
+                  disabled={importing}
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Upload size={16} />
+                  {importing ? "Importing January..." : "Import January 2025"}
+                </button>
+                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full bg-white transition-all" style={{ width: `${importProgress}%` }} />
+                </div>
+                <p className="mt-3 break-words text-xs leading-5 text-zinc-400">{importStatus}</p>
+                {importResults.length > 0 && (
+                  <div className="mt-3 space-y-1 border-t border-white/10 pt-3">
+                    {importResults.map((result, index) => (
+                      <p key={index} className="text-[11px] text-zinc-500">{result}</p>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="mt-5 flex items-center justify-between text-xs">
-                <span className="text-zinc-500">Supported format</span>
-                <span className="rounded-md bg-white/5 px-2 py-1 text-zinc-300">CSV</span>
+                <span className="text-zinc-500">Output format</span>
+                <span className="rounded-md bg-white/5 px-2 py-1 text-zinc-300">CSV · M1</span>
               </div>
             </div>
           </div>
