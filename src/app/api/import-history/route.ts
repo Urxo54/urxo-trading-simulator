@@ -116,7 +116,9 @@ export async function POST() {
                 inspection.firstTimestamp === null ||
                 inspection.lastTimestamp === null ||
                 inspection.firstTimestamp < month.start ||
-                inspection.lastTimestamp >= month.end
+                inspection.lastTimestamp >= month.end ||
+                inspection.firstTimestamp > month.start + 7 * 24 * 60 * 60 * 1000 ||
+                inspection.lastTimestamp < month.end - 7 * 24 * 60 * 60 * 1000
               ) {
                 inspection = null;
               }
@@ -188,7 +190,9 @@ export async function POST() {
                 inspection.firstTimestamp === null ||
                 inspection.lastTimestamp === null ||
                 inspection.firstTimestamp < month.start ||
-                inspection.lastTimestamp >= month.end
+                inspection.lastTimestamp >= month.end ||
+                inspection.firstTimestamp > month.start + 7 * 24 * 60 * 60 * 1000 ||
+                inspection.lastTimestamp < month.end - 7 * 24 * 60 * 60 * 1000
               ) {
                 throw new Error(
                   `${market.label} · ${month.key}: downloaded file failed validation. It will not be added to the final dataset.`,
