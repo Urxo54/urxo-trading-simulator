@@ -28,7 +28,7 @@ test("every sidebar destination has a page", async () => {
 test("market data page reads the real market-data API and supports refresh", async () => {
   const page = await read("src/app/market-data/page.tsx");
   assert.match(page, /fetch\("\/api\/market-data"/);
-  assert.match(page, /onClick=\\{\\(\\)=>\\{setLoading\\(true\\);void refresh\\(\\);\\}\\}/);
+  assert.match(page, /onClick=\{\(\)=>\{setLoading\(true\);void refresh\(\);\}\}/);
   assert.match(page, /m\.count\.toLocaleString\(\)/);
 });
 
