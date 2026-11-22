@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Sidebar from "@/components/sidebar";
+import TradingWorkspace from "@/components/trading-workspace";
 import {
   CandlestickSeries,
   ColorType,
@@ -342,6 +344,8 @@ export default function TrainingPage() {
 
   return (
     <main className="min-h-screen bg-[#080808] text-white">
+      <Sidebar />
+      <div className="lg:ml-[245px]">
       <header className="flex h-[70px] items-center justify-between border-b border-white/[0.08] px-5 md:px-8">
         <div className="flex items-center gap-4">
           <Link href="/" aria-label="Back to dashboard" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-zinc-400 transition hover:bg-white/10 hover:text-white">
@@ -431,6 +435,17 @@ export default function TrainingPage() {
             </div>
           </div>
         </section>
+
+        <TradingWorkspace
+          chart={chartRef.current}
+          series={seriesRef.current}
+          instrument={instrument}
+          price={lastPrice === "—" ? null : Number(lastPrice)}
+          replayTime={currentReplayTime}
+          candleHigh={currentIndex >= 0 ? allCandlesRef.current[currentIndex]?.high ?? null : null}
+          candleLow={currentIndex >= 0 ? allCandlesRef.current[currentIndex]?.low ?? null : null}
+          decimals={selectedInstrument.decimals}
+        />
 
         <section className="mt-4 rounded-2xl border border-white/[0.08] bg-[#0c0c0c] p-4 md:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -544,6 +559,7 @@ export default function TrainingPage() {
             </div>
           ))}
         </div>
+      </div>
       </div>
     </main>
   );
