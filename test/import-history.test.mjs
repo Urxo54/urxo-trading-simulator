@@ -22,7 +22,7 @@ test("builds Dukascopy CLI arguments for a three-day EUR/USD test range", () => 
 
   assert.deepEqual(args, [
     "--yes",
-    "dukascopy-node",
+    "dukascopy-node@1.51.1",
     "-i", "eurusd",
     "-from", "2025-01-06",
     "-to", "2025-01-09",
