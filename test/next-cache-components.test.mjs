@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 
 const appDirectory = path.resolve("src/app");
-const forbiddenRouteConfig = /export\s+const\s+(runtime|dynamic|dynamicParams|revalidate|fetchCache)\s*=/;
+const forbiddenRouteConfig = /export\s+const\s+(runtime|dynamic|dynamicParams|revalidate|fetchCache|preferredRegion)\s*=/;
 
 async function collectSourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
