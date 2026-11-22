@@ -5,6 +5,24 @@ import { historicalMarkets, inspectHistoricalCsv } from "@/lib/market-data";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const earliestAcceptedTimestamp = Date.UTC(2024, 0, 10);
+const latestAcceptedTimestamp = Date.UTC(2025, 11, 20);
+
+function isCompletePeriod(inspection: {
+  count: number;
+  firstTimestamp: number | null;
+  lastTimestamp: number | null;
+}) {
+  return (
+    inspection.count > 0 &&
+    inspection.firstTimestamp !== null &&
+    inspection.lastTimestamp !== null &&
+    inspection.firstTimestamp <= earliestAcceptedTimestamp &&
+    inspection.lastTimestamp >= latestAcceptedTimestamp &&
+    inspection.lastTimestamp < Date.UTC(2026, 0, 1)
+  );
+}
+
 export async function GET() {
   const directory = path.join(process.cwd(), "data", "historical");
 
@@ -26,7 +44,10 @@ export async function GET() {
       });
     }
     console.error("Market data directory could not be read:", error);
-    return Response.json({ error: "Could not inspect the local market data folder." }, { status: 500 });
+    return Response.json(
+      { error: "Could not inspect the local market data folder." },
+      { status: 500 },
+    );
   }
 
   const markets = await Promise.all(
@@ -36,10 +57,11 @@ export async function GET() {
       if (entries.includes(market.fileName)) {
         try {
           const inspection = await inspectHistoricalCsv(finalPath);
+          const complete = isCompletePeriod(inspection);
           return {
             id: market.id,
             label: market.label,
-            status: inspection.count > 0 ? "ready" : "invalid",
+            status: complete ? "ready" : inspection.count > 0 ? "partial" : "invalid",
             fileName: market.fileName,
             ...inspection,
           };
@@ -56,9 +78,9 @@ export async function GET() {
         }
       }
 
-      const partialNames = entries.filter(
-        (name) => name.startsWith(`${market.fileName}.`) && name.endsWith(".part"),
-      );
+      const partialNames = entries
+        .filter((name) => name.startsWith(`${market.fileName}.`) && name.endsWith(".part"))
+        .sort();
 
       if (partialNames.length > 0) {
         const partialName = partialNames[partialNames.length - 1];
