@@ -13,9 +13,9 @@ type Candle = {
 };
 
 const instruments: Record<Instrument, string> = {
-  eurusd: "eurusd-m1-bid-2025-01-01-2025-02-01.csv",
-  xauusd: "xauusd-m1-bid-2025-01-01-2025-02-01.csv",
-  usatechidxusd: "usatechidxusd-m1-bid-2025-01-01-2025-02-01.csv",
+  eurusd: "eurusd-m1-bid-2024-01-01-2026-01-01.csv",
+  xauusd: "xauusd-m1-bid-2024-01-01-2026-01-01.csv",
+  usatechidxusd: "usatechidxusd-m1-bid-2024-01-01-2026-01-01.csv",
 };
 
 const intervals: Record<Timeframe, number> = {
@@ -112,7 +112,7 @@ export async function GET(
       instrument,
       timeframe,
       source: "Dukascopy",
-      dateRange: "2025-01-01 to 2025-02-01",
+      dateRange: "2024-01-01 to 2026-01-01",
       count: candles.length,
       candles,
     });
