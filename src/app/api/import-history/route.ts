@@ -1,35 +1,37 @@
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { historicalMarkets, inspectHistoricalCsv } from "@/lib/market-data";
 
+export const runtime = "nodejs";
 export const maxDuration = 600;
 
 let importInProgress = false;
-
-const instruments = [
-  { id: "eurusd", label: "EUR/USD" },
-  { id: "xauusd", label: "Gold (XAU/USD)" },
-  { id: "usatechidxusd", label: "NAS100" },
-] as const;
 
 function send(
   controller: ReadableStreamDefaultController<Uint8Array>,
   encoder: TextEncoder,
   payload: Record<string, unknown>,
 ) {
-  controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+  try {
+    controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+  } catch {
+    // The browser may leave the page while a download is running.
+  }
 }
 
 export async function POST() {
   if (importInProgress) {
     return Response.json(
-      { error: "An import is already running." },
+      { error: "A historical data download is already running." },
       { status: 409 },
     );
   }
 
   importInProgress = true;
   const outputDirectory = path.join(process.cwd(), "data", "historical");
+  let activeChild: ReturnType<typeof spawn> | null = null;
+  let cancelled = false;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -38,23 +40,24 @@ export async function POST() {
       try {
         await mkdir(outputDirectory, { recursive: true });
 
-        for (let index = 0; index < instruments.length; index += 1) {
-          const instrument = instruments[index];
+        for (let index = 0; index < historicalMarkets.length; index += 1) {
+          if (cancelled) throw new Error("Download was cancelled.");
 
+          const market = historicalMarkets[index];
           send(controller, encoder, {
             type: "progress",
-            instrument: instrument.id,
-            label: instrument.label,
+            instrument: market.id,
+            label: market.label,
             current: index + 1,
-            total: instruments.length,
-            message: `Downloading ${instrument.label}...`,
+            total: historicalMarkets.length,
+            message: `Downloading ${market.label} · 2024–2025...`,
           });
 
           const args = [
             "--yes",
             "dukascopy-node",
             "-i",
-            instrument.id,
+            market.id,
             "-from",
             "2024-01-01",
             "-to",
@@ -64,7 +67,7 @@ export async function POST() {
             "-f",
             "csv",
             "-dir",
-            "./data/historical",
+            outputDirectory,
             "--retries",
             "5",
             "--retry-pause",
@@ -73,6 +76,7 @@ export async function POST() {
             "1",
             "--batch-pause",
             "1000",
+            "--retry-on-empty",
             "--cache",
           ];
 
@@ -82,13 +86,14 @@ export async function POST() {
               shell: process.platform === "win32",
               windowsHide: true,
             });
+            activeChild = child;
 
             child.stdout.on("data", (chunk: Buffer) => {
               const message = chunk.toString().trim();
               if (message) {
                 send(controller, encoder, {
                   type: "log",
-                  instrument: instrument.id,
+                  instrument: market.id,
                   message: message.slice(-500),
                 });
               }
@@ -99,43 +104,68 @@ export async function POST() {
               if (message) {
                 send(controller, encoder, {
                   type: "log",
-                  instrument: instrument.id,
+                  instrument: market.id,
                   message: message.slice(-500),
                 });
               }
             });
 
-            child.on("error", reject);
-            child.on("close", (code) => resolve(code ?? 1));
+            child.once("error", reject);
+            child.once("close", (code) => {
+              activeChild = null;
+              resolve(code ?? 1);
+            });
           });
 
+          if (cancelled) throw new Error("Download was cancelled.");
           if (exitCode !== 0) {
-            throw new Error(`${instrument.label}: downloader exited with code ${exitCode}`);
+            throw new Error(`${market.label}: downloader exited with code ${exitCode}. Review the download log above.`);
+          }
+
+          const filePath = path.join(outputDirectory, market.fileName);
+          let inspection;
+          try {
+            inspection = await inspectHistoricalCsv(filePath);
+          } catch {
+            throw new Error(
+              `${market.label}: downloader finished, but the expected CSV file was not created. The download is not marked as complete.`,
+            );
+          }
+
+          if (inspection.count === 0) {
+            throw new Error(`${market.label}: the CSV file exists but contains no valid candles.`);
           }
 
           send(controller, encoder, {
             type: "completed",
-            instrument: instrument.id,
-            label: instrument.label,
+            instrument: market.id,
+            label: market.label,
+            count: inspection.count,
+            sizeBytes: inspection.sizeBytes,
           });
         }
 
         send(controller, encoder, {
           type: "done",
-          message: "2024–2025 data downloaded for all three markets.",
+          message: "All three 2024–2025 datasets downloaded and verified.",
         });
       } catch (error) {
         send(controller, encoder, {
           type: "error",
-          message: error instanceof Error ? error.message : "Import failed.",
+          message: error instanceof Error ? error.message : "Historical data download failed.",
         });
       } finally {
         importInProgress = false;
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // The stream was already cancelled by the client.
+        }
       }
     },
     cancel() {
-      importInProgress = false;
+      cancelled = true;
+      activeChild?.kill();
     },
   });
 
@@ -144,6 +174,7 @@ export async function POST() {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }
