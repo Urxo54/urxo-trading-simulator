@@ -31,7 +31,6 @@ import {
   StepForward,
   MousePointer2,
   Minus as HorizontalLineIcon,
-  TrendingUp,
   Square,
   Type,
   Undo2,
@@ -40,11 +39,11 @@ import {
 
 type Timeframe = "D1" | "H4" | "H1";
 type Instrument = "eurusd" | "xauusd" | "usatechidxusd";
-type DrawingTool = "cursor" | "horizontal" | "line" | "trend" | "rectangle" | "text" | "delete";
+type DrawingTool = "cursor" | "horizontal" | "line" | "rectangle" | "text" | "delete";
 type ChartPoint = { time: number; price: number };
 type ChartMark =
   | { id: number; type: "horizontal" | "text"; a: ChartPoint; text?: string }
-  | { id: number; type: "line" | "trend" | "rectangle"; a: ChartPoint; b: ChartPoint };
+  | { id: number; type: "line" | "rectangle"; a: ChartPoint; b: ChartPoint };
 
 const instrumentDetails: Record<
   Instrument,
@@ -354,13 +353,84 @@ export default function TrainingPage() {
     return () => controller.abort();
   }, [chartReady, sessionReady, instrument, timeframe, selectedInstrument.decimals, retryCount]);
 
-  const pointFromPointer = (event: import("react").PointerEvent<HTMLDivElement>): ChartPoint | null => {
-    const chart = chartRef.current; const series = seriesRef.current;
+  const timeframeSeconds = timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600;
+
+  // Convert between chart coordinates and market time. Logical coordinates let
+  // drawings extend into the empty space after the last revealed candle.
+  const pointFromCoordinates = (x: number, y: number): ChartPoint | null => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
     if (!chart || !series) return null;
+    const logical = chart.timeScale().coordinateToLogical(x);
+    const price = series.coordinateToPrice(y);
+    if (logical === null || price === null || !Number.isFinite(price)) return null;
+
+    const candles = allCandlesRef.current;
+    const lastVisible = candles[currentIndex];
+    if (!lastVisible) return null;
+    let time: number;
+    if (logical >= currentIndex) {
+      time = Number(lastVisible.time) + (logical - currentIndex) * timeframeSeconds;
+    } else {
+      const left = Math.max(0, Math.floor(logical));
+      const right = Math.min(candles.length - 1, left + 1);
+      const fraction = logical - left;
+      time = Number(candles[left].time) +
+        (Number(candles[right].time) - Number(candles[left].time)) * fraction;
+    }
+    return { time, price };
+  };
+
+  const pointFromPointer = (event: import("react").PointerEvent<HTMLDivElement>): ChartPoint | null => {
     const bounds = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - bounds.left; const y = event.clientY - bounds.top;
-    const time = chart.timeScale().coordinateToTime(x); const price = series.coordinateToPrice(y);
-    return time === null || price === null || !Number.isFinite(price) ? null : { time: Number(time), price };
+    return pointFromCoordinates(event.clientX - bounds.left, event.clientY - bounds.top);
+  };
+
+  const coordinateForTime = (time: number): number | null => {
+    const chart = chartRef.current;
+    if (!chart) return null;
+    const candles = allCandlesRef.current;
+    if (!candles.length) return null;
+    let logical: number;
+    const lastVisible = candles[currentIndex];
+    if (!lastVisible) return null;
+    if (time >= Number(lastVisible.time)) {
+      logical = currentIndex + (time - Number(lastVisible.time)) / timeframeSeconds;
+    } else {
+      let low = 0;
+      let high = Math.min(currentIndex, candles.length - 1);
+      while (low < high) {
+        const mid = Math.floor((low + high) / 2);
+        if (Number(candles[mid].time) < time) low = mid + 1;
+        else high = mid;
+      }
+      const right = low;
+      if (right === 0) logical = 0;
+      else {
+        const left = right - 1;
+        const span = Number(candles[right].time) - Number(candles[left].time);
+        const fraction = span ? (time - Number(candles[left].time)) / span : 0;
+        logical = left + fraction;
+      }
+    }
+    return chart.timeScale().logicalToCoordinate(logical);
+  };
+
+  const snapLinePoint = (origin: ChartPoint, target: ChartPoint, bounds: DOMRect): ChartPoint => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (!chart || !series) return target;
+    const x1 = coordinateForTime(origin.time);
+    const y1 = series.priceToCoordinate(origin.price);
+    const x2 = coordinateForTime(target.time);
+    const y2 = series.priceToCoordinate(target.price);
+    if (x1 === null || y1 === null || x2 === null || y2 === null) return target;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const distance = Math.hypot(dx, dy);
+    const angle = Math.atan2(dy, dx);
+    const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+    return pointFromCoordinates(x1 + Math.cos(snappedAngle) * distance, y1 + Math.sin(snappedAngle) * distance) ?? target;
   };
 
   const markDistance = (mark: ChartMark, x: number, y: number) => {
@@ -371,14 +441,14 @@ export default function TrainingPage() {
     if (mark.type === "horizontal") return Math.abs(y-a.y);
     if (mark.type === "text") return Math.hypot(x-a.x,y-a.y);
     const b = xy(mark.b); if (b.x === null || b.y === null) return Infinity;
-    if (mark.type === "trend") { const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy,t=l?Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/l)):0; return Math.hypot(x-a.x-t*dx,y-a.y-t*dy); }
+    if (mark.type === "line") { const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy,t=l?Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/l)):0; return Math.hypot(x-a.x-t*dx,y-a.y-t*dy); }
     const left=Math.min(a.x,b.x),right=Math.max(a.x,b.x),top=Math.min(a.y,b.y),bottom=Math.max(a.y,b.y);
     return x>=left&&x<=right&&y>=top&&y<=bottom ? 0 : Math.hypot(x-Math.max(left,Math.min(right,x)),y-Math.max(top,Math.min(bottom,y)));
   };
 
   const handleChartPointerDown = (event: import("react").PointerEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest("button")) return;
-    const point=pointFromPointer(event); if(!point)return;
+    let point=pointFromPointer(event); if(!point)return;
     const bounds=event.currentTarget.getBoundingClientRect(),x=event.clientX-bounds.left,y=event.clientY-bounds.top;
     if(drawingTool==="cursor"){
       let hit:ChartMark|null=null,dist=14; marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hit=m;}});
@@ -390,14 +460,15 @@ export default function TrainingPage() {
     if(drawingTool==="horizontal"){setMarks(v=>[...v,{id:nextMarkId.current++,type:"horizontal",a:point}]);return;}
     if(drawingTool==="text"){const value=window.prompt("Текст заметки:");if(value?.trim())setMarks(v=>[...v,{id:nextMarkId.current++,type:"text",a:point,text:value.trim()}]);return;}
     if(!pendingPoint){setPendingPoint(point);setPreviewPoint(point);return;}
-    setMarks(v=>[...v,{id:nextMarkId.current++,type:drawingTool,a:pendingPoint,b:point}]);setPendingPoint(null);setPreviewPoint(null);
+    if(drawingTool === "line" && event.shiftKey){const bounds=event.currentTarget.getBoundingClientRect();point=snapLinePoint(pendingPoint,point,bounds);}
+    setMarks(v=>[...v,{id:nextMarkId.current++,type:drawingTool,a:pendingPoint,b:point}]);setPendingPoint(null);setPreviewPoint(null);setDrawingTool("cursor");
   };
 
   const handleChartPointerMove = (event: import("react").PointerEvent<HTMLDivElement>) => {
     const point=pointFromPointer(event);if(!point)return;
     if(dragRef.current){chartRef.current?.setCrosshairPosition(point.price,point.time as Time,seriesRef.current!);const {id,start,original}=dragRef.current,dt=point.time-start.time,dp=point.price-start.price;
       setMarks(v=>v.map(m=>{if(m.id!==id)return m;const a={time:original.a.time+dt,price:original.a.price+dp};return "b" in original?{...original,a,b:{time:original.b.time+dt,price:original.b.price+dp}}:{...original,a};}));return;}
-    if(pendingPoint)setPreviewPoint(point);
+    if(pendingPoint){if(drawingTool === "line" && event.shiftKey){const bounds=event.currentTarget.getBoundingClientRect();point=snapLinePoint(pendingPoint,point,bounds);}setPreviewPoint(point);}
   };
   const handleChartPointerUp = () => { if(dragRef.current){dragRef.current=null;chartRef.current?.applyOptions({handleScroll:true,handleScale:true});chartRef.current?.clearCrosshairPosition();} };
 
@@ -413,11 +484,11 @@ export default function TrainingPage() {
       if(m.type==="horizontal")return <g key={m.id}><line x1="0" x2="100%" y1={a.y} y2={a.y} stroke={active?"#fff":"#facc15"} strokeWidth={active?2.5:1.5} strokeDasharray="6 4"/><text x="8" y={a.y-6} fill={active?"#fff":"#facc15"} fontSize="11">{m.a.price.toFixed(selectedInstrument.decimals)}</text></g>;
       if(m.type==="text")return <text key={m.id} x={a.x+7} y={a.y-7} fill="white" fontSize="13" stroke="#080808" strokeWidth="3" paintOrder="stroke">{m.text}</text>;
       const b=xy(m.b);if(b.x===null||b.y===null)return null;
-      if(m.type==="line"||m.type==="trend")return <line key={m.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={active?"#fff":m.type==="line"?"#f472b6":"#60a5fa"} strokeWidth={active?3:2} strokeDasharray={ghost?"5 4":undefined}/>;
+      if(m.type==="line")return <line key={m.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={active?"#fff":"#f472b6"} strokeWidth={active?3:2} strokeDasharray={ghost?"5 4":undefined}/>;
       return <rect key={m.id} x={Math.min(a.x,b.x)} y={Math.min(a.y,b.y)} width={Math.abs(b.x-a.x)} height={Math.abs(b.y-a.y)} fill="rgba(96,165,250,0.12)" stroke={active?"#fff":"#60a5fa"} strokeWidth={active?2.5:1.5} strokeDasharray={ghost?"5 4":undefined}/>;
     };
     const out=marks.map(m=>draw(m));
-    if(pendingPoint&&previewPoint){const ghost:ChartMark=drawingTool==="line"?{id:-1,type:"line",a:pendingPoint,b:previewPoint}:drawingTool==="trend"?{id:-1,type:"trend",a:pendingPoint,b:previewPoint}:{id:-1,type:"rectangle",a:pendingPoint,b:previewPoint};out.push(draw(ghost,true));}
+    if(pendingPoint&&previewPoint){const ghost:ChartMark=drawingTool==="line"?{id:-1,type:"line",a:pendingPoint,b:previewPoint}:{id:-1,type:"rectangle",a:pendingPoint,b:previewPoint};out.push(draw(ghost,true));}
     return out;
   })();
   useEffect(() => {
@@ -497,7 +568,6 @@ export default function TrainingPage() {
               {toolButton("cursor", "Курсор", MousePointer2)}
               {toolButton("horizontal", "Горизонтальная линия", HorizontalLineIcon)}
               {toolButton("line", "Линия (от точки до точки)", Minus)}
-              {toolButton("trend", "Трендовая линия", TrendingUp)}
               {toolButton("rectangle", "Прямоугольник", Square)}
               {toolButton("text", "Текстовая заметка", Type)}
               {toolButton("delete", "Удалить пометку", Trash2)}
@@ -511,9 +581,9 @@ export default function TrainingPage() {
                 disabled={!marks.length && !pendingPoint}
                 className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10 disabled:opacity-30"><Trash2 size={16} /></button>
             </div>
-            {drawingTool !== "cursor" && <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-lg border border-white/10 bg-[#111111]/90 px-3 py-2 text-[11px] text-zinc-300">{pendingPoint ? "Двигай мышь для размера · второй клик — зафиксировать" : "Первый клик — начальная точка"}</div>}
+            {drawingTool !== "cursor" && <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-lg border border-white/10 bg-[#111111]/90 px-3 py-2 text-[11px] text-zinc-300">{pendingPoint ? "Двигай мышь для размера · второй клик — зафиксировать (Shift — ровная линия)" : "Первый клик — начальная точка"}</div>}
             <div ref={chartContainerRef} onPointerDownCapture={handleChartPointerDown} onPointerMove={handleChartPointerMove} onPointerUp={handleChartPointerUp} onPointerCancel={handleChartPointerUp} className={`absolute inset-0 w-full transition-opacity ${hasData ? "opacity-100" : "pointer-events-none opacity-0"}`} />
-            {hasData && <svg key={overlayVersion} className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible">{drawingMarkup}</svg>}
+            {hasData && <svg className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible">{drawingMarkup}</svg>}
             {loading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-[#080808]">
                 <LoaderCircle className="animate-spin text-zinc-300" size={30} />
