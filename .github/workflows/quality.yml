@@ -42,6 +42,39 @@ jobs:
         continue-on-error: true
         run: npm run build
 
+      - name: Run three-day live Dukascopy smoke test
+        id: dukascopy
+        continue-on-error: true
+        run: |
+          smoke_dir="$RUNNER_TEMP/dukascopy-smoke"
+          mkdir -p "$smoke_dir"
+          npx --yes dukascopy-node -i eurusd -from 2025-01-06 -to 2025-01-09 -t m1 -f csv -dir "$smoke_dir" -fn eurusd-three-day-smoke --retries 3 --retry-pause 1000 --retry-on-empty
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFile } from "node:fs/promises";
+          import path from "node:path";
+
+          const file = path.join(process.env.RUNNER_TEMP, "dukascopy-smoke", "eurusd-three-day-smoke.csv");
+          const csv = await readFile(file, "utf8");
+          const [header, ...lines] = csv.trim().split(/\r?\n/);
+          assert.equal(header, "timestamp,open,high,low,close");
+
+          const rows = lines.filter(Boolean).map((line) => line.split(",").map(Number));
+          assert.ok(rows.length >= 100, `Expected at least 100 candles, received ${rows.length}`);
+
+          const start = Date.parse("2025-01-06T00:00:00.000Z");
+          const end = Date.parse("2025-01-09T00:00:00.000Z");
+          for (const [timestamp, open, high, low, close] of rows) {
+            assert.ok(Number.isInteger(timestamp) && timestamp >= start && timestamp < end, "Candle timestamp is outside the requested three-day range");
+            assert.ok([open, high, low, close].every(Number.isFinite), "Candle contains a non-finite price");
+            assert.ok(high >= Math.max(open, close), "Candle high is below open or close");
+            assert.ok(low <= Math.min(open, close), "Candle low is above open or close");
+            assert.ok(high >= low, "Candle high is below candle low");
+          }
+
+          console.log(`Verified ${rows.length} EUR/USD M1 candles for 2025-01-06 through 2025-01-08.`);
+          NODE
+
       - name: Fail if any quality check failed
         if: always()
         env:
@@ -49,6 +82,7 @@ jobs:
           TYPES_OUTCOME: ${{ steps.types.outcome }}
           TESTS_OUTCOME: ${{ steps.tests.outcome }}
           BUILD_OUTCOME: ${{ steps.build.outcome }}
+          DUKASCOPY_OUTCOME: ${{ steps.dukascopy.outcome }}
         run: |
           if [ "$LINT_OUTCOME" != "success" ] || [ "$TYPES_OUTCOME" != "success" ] || [ "$TESTS_OUTCOME" != "success" ] || [ "$BUILD_OUTCOME" != "success" ]; then
             echo "At least one quality check failed."
