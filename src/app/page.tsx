@@ -1,11 +1,13 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Activity,
+  AlertCircle,
   BarChart3,
+  CheckCircle2,
   CandlestickChart,
   ChevronRight,
   CircleHelp,
@@ -13,7 +15,9 @@ import {
   Crosshair,
   Database,
   LayoutDashboard,
+  LoaderCircle,
   Play,
+  RefreshCw,
   Settings,
   ShieldCheck,
   TrendingUp,
@@ -35,13 +39,30 @@ type ImportEvent = {
   current?: number;
   total?: number;
   message?: string;
+  count?: number;
+  sizeBytes?: number;
 };
+
+type MarketDataItem = {
+  id: string;
+  label: string;
+  status: "ready" | "partial" | "missing" | "invalid" | "error";
+  count: number;
+  sizeBytes: number;
+  modifiedAt: string | null;
+};
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function Home() {
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState("Ready to import 2024–2025 historical data.");
   const [importProgress, setImportProgress] = useState(0);
-  const [importResults, setImportResults] = useState<string[]>([]);
+  const [importResults, setImportResults] = useState<string[]>([]);\n  const [importFailed, setImportFailed] = useState(false);\n  const [marketData, setMarketData] = useState<MarketDataItem[]>([]);\n  const [marketDataLoading, setMarketDataLoading] = useState(true);\n\n  useEffect(() => {\n    let active = true;\n\n    async function refreshMarketData() {\n      try {\n        const response = await fetch("/api/market-data", { cache: "no-store" });\n        if (!response.ok) throw new Error("Could not inspect local market data.");\n        const result = (await response.json()) as { markets?: MarketDataItem[] };\n        if (active && Array.isArray(result.markets)) setMarketData(result.markets);\n      } catch {\n        if (active) setMarketData([]);\n      } finally {\n        if (active) setMarketDataLoading(false);\n      }\n    }\n\n    void refreshMarketData();\n    const interval = window.setInterval(refreshMarketData, importing ? 2000 : 15000);\n    return () => {\n      active = false;\n      window.clearInterval(interval);\n    };\n  }, [importing]);
 
   async function importJanuary() {
     setImporting(true);
@@ -81,7 +102,7 @@ export default function Home() {
             setImportStatus(data.message ?? "Downloading...");
           } else if (data.type === "completed") {
             setImportProgress(Math.round(((data.instrument === "eurusd" ? 1 : data.instrument === "xauusd" ? 2 : 3) / 3) * 100));
-            setImportResults((previous) => [...previous, `✓ ${data.label} downloaded`]);
+            setImportResults((previous) => [...previous, `✓ ${data.label}: ${Number(data.count ?? 0).toLocaleString()} candles · ${formatBytes(data.sizeBytes ?? 0)}`]);
           } else if (data.type === "done") {
             setImportProgress(100);
             setImportStatus(data.message ?? "Import complete.");
@@ -231,7 +252,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold">Market Data</h3>
-                  <p className="mt-1 text-xs text-zinc-500">Historical CSV files</p>
+                  <p className="mt-1 text-xs text-zinc-500">Local historical market data · M1</p>
                 </div>
               </div>
               <div className="rounded-xl border border-white/10 bg-black/30 p-5">
@@ -253,8 +274,8 @@ export default function Home() {
                 <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
                   <div className="h-full rounded-full bg-white transition-all" style={{ width: `${importProgress}%` }} />
                 </div>
-                <p className="mt-3 break-words text-xs leading-5 text-zinc-400">{importStatus}</p>
-                {importResults.length > 0 && (
+                <p className={`mt-3 flex items-start gap-2 break-words text-xs leading-5 ${importFailed ? "text-red-300" : "text-zinc-400"}`}>{importFailed && <AlertCircle size={14} className="mt-0.5 shrink-0" />}{importStatus}</p>
+                <div className="mt-5 border-t border-white/10 pt-4">\n                  <div className="mb-3 flex items-center justify-between">\n                    <p className="text-xs font-semibold text-zinc-300">Local datasets</p>\n                    <span className="text-[10px] text-zinc-600">{marketDataLoading ? "Checking..." : `${marketData.filter((item) => item.status === "ready").length}/3 ready`}</span>\n                  </div>\n                  <div className="space-y-3">\n                    {marketData.map((item) => (\n                      <div key={item.id} className="flex items-center justify-between gap-3">\n                        <div className="min-w-0">\n                          <p className="text-xs font-medium text-zinc-300">{item.label}</p>\n                          <p className="mt-1 text-[10px] text-zinc-600">{item.count.toLocaleString()} candles · {formatBytes(item.sizeBytes)}</p>\n                        </div>\n                        <div className="flex shrink-0 items-center gap-1.5 text-[10px]">\n                          {item.status === "ready" ? <CheckCircle2 size={13} className="text-zinc-200" /> : item.status === "partial" ? <AlertCircle size={13} className="text-amber-300" /> : item.status === "error" || item.status === "invalid" ? <AlertCircle size={13} className="text-red-300" /> : <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />}\n                          <span className={item.status === "ready" ? "text-zinc-300" : item.status === "partial" ? "text-amber-300" : item.status === "error" || item.status === "invalid" ? "text-red-300" : "text-zinc-600"}>{item.status === "ready" ? "Verified" : item.status === "partial" ? "Partial" : item.status === "invalid" ? "Invalid" : item.status === "error" ? "Read error" : "Missing"}</span>\n                        </div>\n                      </div>\n                    ))}\n                    {!marketDataLoading && marketData.length === 0 && <p className="text-[11px] text-zinc-600">Could not read local data status.</p>}\n                  </div>\n                </div>\n                {importResults.length > 0 && (
                   <div className="mt-3 space-y-1 border-t border-white/10 pt-3">
                     {importResults.map((result, index) => (
                       <p key={index} className="text-[11px] text-zinc-500">{result}</p>
@@ -276,7 +297,7 @@ export default function Home() {
             </div>
             <div className="grid gap-5 sm:grid-cols-3">
               {[
-                { label: "Markets", value: "Forex · Gold · Indices · Crypto" },
+                { label: "Markets", value: "Forex · Gold · Indices" },
                 { label: "Timeframes", value: "D1 · H4 · H1" },
                 { label: "Account Type", value: "Virtual · $10,000" },
               ].map((item) => (
