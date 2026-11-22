@@ -100,6 +100,7 @@ export async function POST() {
           await rm(assembledPath, { force: true });
           let hasHeader = false;
           let marketCandleCount = 0;
+          let csvHeader: string | null = null;
 
           for (const month of months) {
             if (cancelled) throw new Error("Download was cancelled.");
@@ -203,16 +204,22 @@ export async function POST() {
               throw new Error(`${market.label} · ${month.key}: CSV header is missing or invalid.`);
             }
 
-            const body = lines.filter((line) => line.trim().length > 0).join("\n");
-            if (!body) {
-              throw new Error(`${market.label} · ${month.key}: CSV contains no candle rows.`);
+            const dataRows = lines.filter((line) => line.trim().length > 0);
+            if (dataRows.length !== inspection.count) {
+              throw new Error(
+                `${market.label} · ${month.key}: CSV row validation failed (${dataRows.length} rows, ${inspection.count} valid candles).`,
+              );
+            }
+            if (csvHeader !== null && csvHeader !== header) {
+              throw new Error(`${market.label} · ${month.key}: CSV format changed between monthly files.`);
             }
 
             if (!hasHeader) {
+              csvHeader = header;
               await writeFile(assembledPath, `${header}\n`, "utf8");
               hasHeader = true;
             }
-            await appendFile(assembledPath, `${body}\n`, "utf8");
+            await appendFile(assembledPath, `${dataRows.join("\n")}\n`, "utf8");
 
             marketCandleCount += inspection.count;
             completedUnits += 1;
