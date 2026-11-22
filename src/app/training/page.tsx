@@ -29,10 +29,22 @@ import {
   SkipForward,
   StepBack,
   StepForward,
+  MousePointer2,
+  Minus as HorizontalLineIcon,
+  TrendingUp,
+  Square,
+  Type,
+  Undo2,
+  Trash2,
 } from "lucide-react";
 
 type Timeframe = "D1" | "H4" | "H1";
 type Instrument = "eurusd" | "xauusd" | "usatechidxusd";
+type DrawingTool = "cursor" | "horizontal" | "trend" | "rectangle" | "text" | "delete";
+type ChartPoint = { time: number; price: number };
+type ChartMark =
+  | { id: number; type: "horizontal" | "text"; a: ChartPoint; text?: string }
+  | { id: number; type: "trend" | "rectangle"; a: ChartPoint; b: ChartPoint };
 
 const instrumentDetails: Record<
   Instrument,
@@ -78,6 +90,11 @@ export default function TrainingPage() {
   const [currentReplayTime, setCurrentReplayTime] = useState<number | null>(null);
   const allCandlesRef = useRef<CandlestickData<Time>[]>([]);
   const replayIndexRef = useRef(-1);
+  const [drawingTool, setDrawingTool] = useState<DrawingTool>("cursor");
+  const [marks, setMarks] = useState<ChartMark[]>([]);
+  const [pendingPoint, setPendingPoint] = useState<ChartPoint | null>(null);
+  const [overlayVersion, setOverlayVersion] = useState(0);
+  const nextMarkId = useRef(1);
 
   const selectedInstrument = instrumentDetails[instrument];
   const sessionDateLabel = sessionTime === null
@@ -180,6 +197,8 @@ export default function TrainingPage() {
     seriesRef.current = series;
     setChartReady(true);
 
+    const refreshOverlay = () => setOverlayVersion((value) => value + 1);
+    chart.timeScale().subscribeVisibleTimeRangeChange(refreshOverlay);
     const resizeObserver = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width;
       if (width && width > 0) chart.applyOptions({ width });
@@ -188,6 +207,7 @@ export default function TrainingPage() {
 
     return () => {
       resizeObserver.disconnect();
+      chart.timeScale().unsubscribeVisibleTimeRangeChange(refreshOverlay);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
@@ -229,6 +249,9 @@ export default function TrainingPage() {
     setTotalCandles(0);
     setCurrentReplayTime(null);
     setIsPlaying(false);
+    setMarks([]);
+    setPendingPoint(null);
+    setDrawingTool("cursor");
     allCandlesRef.current = [];
     replayIndexRef.current = -1;
     seriesRef.current.setData([]);
@@ -325,6 +348,78 @@ export default function TrainingPage() {
     return () => controller.abort();
   }, [chartReady, sessionReady, instrument, timeframe, selectedInstrument.decimals, retryCount]);
 
+  const handleDrawingClick = (event: import("react").PointerEvent<HTMLDivElement>) => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (!chart || !series || drawingTool === "cursor") return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - bounds.left;
+    const y = event.clientY - bounds.top;
+    const time = chart.timeScale().coordinateToTime(x);
+    const price = series.coordinateToPrice(y);
+    if (time === null || price === null || !Number.isFinite(price)) return;
+    const point = { time: Number(time), price };
+    if (drawingTool === "delete") {
+      setMarks((current) => {
+        let closest = -1;
+        let minDistance = 20;
+        current.forEach((mark, index) => {
+          const points = [mark.a, ...("b" in mark ? [mark.b] : [])];
+          const distance = Math.min(...points.map((p) => {
+            const px = chart.timeScale().timeToCoordinate(p.time as Time);
+            const py = series.priceToCoordinate(p.price);
+            return px === null || py === null ? Infinity : Math.hypot(px - x, py - y);
+          }));
+          if (distance < minDistance) { minDistance = distance; closest = index; }
+        });
+        return closest < 0 ? current : current.filter((_, index) => index !== closest);
+      });
+      return;
+    }
+    if (drawingTool === "horizontal") {
+      setMarks((current) => [...current, { id: nextMarkId.current++, type: "horizontal", a: point }]);
+      return;
+    }
+    if (drawingTool === "text") {
+      const value = window.prompt("Текст заметки:");
+      if (value?.trim()) setMarks((current) => [...current, { id: nextMarkId.current++, type: "text", a: point, text: value.trim() }]);
+      return;
+    }
+    if (!pendingPoint) { setPendingPoint(point); return; }
+    setMarks((current) => [...current, { id: nextMarkId.current++, type: drawingTool, a: pendingPoint, b: point }]);
+    setPendingPoint(null);
+  };
+
+  const toolButton = (tool: DrawingTool, label: string, Icon: typeof MousePointer2) => (
+    <button key={tool} type="button" title={label} aria-label={label}
+      onClick={() => { setDrawingTool(tool); setPendingPoint(null); }}
+      className={`rounded-lg border p-2 transition ${drawingTool === tool ? "border-white bg-white text-black" : "border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"}`}>
+      <Icon size={16} />
+    </button>
+  );
+
+  const drawingMarkup = (() => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (!chart || !series) return null;
+    const toCoordinates = (point: ChartPoint) => ({
+      x: chart.timeScale().timeToCoordinate(point.time as Time),
+      y: series.priceToCoordinate(point.price),
+    });
+    return marks.map((mark) => {
+      const a = toCoordinates(mark.a);
+      if (a.x === null || a.y === null) return null;
+      if (mark.type === "horizontal") return <g key={mark.id}>
+        <line x1="0" x2="100%" y1={a.y} y2={a.y} stroke="#facc15" strokeWidth="1.5" strokeDasharray="6 4" />
+        <text x="8" y={a.y - 6} fill="#facc15" fontSize="11">{mark.a.price.toFixed(selectedInstrument.decimals)}</text>
+      </g>;
+      if (mark.type === "text") return <text key={mark.id} x={a.x + 7} y={a.y - 7} fill="white" fontSize="13" stroke="#080808" strokeWidth="3" paintOrder="stroke">{mark.text}</text>;
+      const b = toCoordinates(mark.b);
+      if (b.x === null || b.y === null) return null;
+      if (mark.type === "trend") return <line key={mark.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#60a5fa" strokeWidth="2" />;
+      return <rect key={mark.id} x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)} fill="rgba(96,165,250,0.12)" stroke="#60a5fa" strokeWidth="1.5" />;
+    });
+  })();
   useEffect(() => {
     if (!isPlaying || !hasData) return;
 
@@ -398,7 +493,27 @@ export default function TrainingPage() {
           </div>
 
           <div className="relative min-h-[520px] bg-[#080808]">
+            <div className="absolute left-3 top-3 z-20 flex flex-wrap gap-1 rounded-xl border border-white/10 bg-[#111111]/95 p-1.5 shadow-xl">
+              {toolButton("cursor", "Курсор", MousePointer2)}
+              {toolButton("horizontal", "Горизонтальная линия", HorizontalLineIcon)}
+              {toolButton("trend", "Трендовая линия", TrendingUp)}
+              {toolButton("rectangle", "Прямоугольник", Square)}
+              {toolButton("text", "Текстовая заметка", Type)}
+              {toolButton("delete", "Удалить пометку", Trash2)}
+              <span className="mx-1 w-px bg-white/10" />
+              <button type="button" title="Отменить последнее действие" aria-label="Отменить последнее действие"
+                onClick={() => { setMarks((current) => current.slice(0, -1)); setPendingPoint(null); }}
+                disabled={!marks.length && !pendingPoint}
+                className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10 disabled:opacity-30"><Undo2 size={16} /></button>
+              <button type="button" title="Очистить все пометки" aria-label="Очистить все пометки"
+                onClick={() => { setMarks([]); setPendingPoint(null); }}
+                disabled={!marks.length && !pendingPoint}
+                className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10 disabled:opacity-30"><Trash2 size={16} /></button>
+            </div>
+            {drawingTool !== "cursor" && <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-lg border border-white/10 bg-[#111111]/90 px-3 py-2 text-[11px] text-zinc-300">{pendingPoint ? "Выбери вторую точку" : "Нажми на график, чтобы добавить пометку"}</div>}
             <div ref={chartContainerRef} className={`absolute inset-0 w-full transition-opacity ${hasData ? "opacity-100" : "pointer-events-none opacity-0"}`} />
+            {hasData && <svg key={overlayVersion} className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible">{drawingMarkup}</svg>}
+            {hasData && drawingTool !== "cursor" && <div className="absolute inset-0 z-[15] touch-none" style={{ cursor: drawingTool === "delete" ? "not-allowed" : "crosshair" }} onPointerDown={handleDrawingClick} />}
             {loading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-[#080808]">
                 <LoaderCircle className="animate-spin text-zinc-300" size={30} />
