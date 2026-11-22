@@ -216,11 +216,11 @@ export default function Home() {
                   Choose a market, load a historical period and test your trading decisions
                   in a realistic environment.
                 </p>
-                <button className="mt-8 flex items-center gap-3 rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-black transition hover:bg-zinc-200">
+                <a href="/training" className="mt-8 flex w-fit items-center gap-3 rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-black transition hover:bg-zinc-200">
                   <Play size={17} fill="currentColor" />
                   Start Training
                   <ChevronRight size={17} />
-                </button>
+                </a>
               </div>
             </div>
 
