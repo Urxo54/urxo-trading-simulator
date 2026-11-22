@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Sidebar from "@/components/sidebar";
 import {
   CandlestickSeries,
   ColorType,
@@ -342,6 +343,8 @@ export default function TrainingPage() {
 
   return (
     <main className="min-h-screen bg-[#080808] text-white">
+      <Sidebar />
+      <div className="lg:ml-[245px]">
       <header className="flex h-[70px] items-center justify-between border-b border-white/[0.08] px-5 md:px-8">
         <div className="flex items-center gap-4">
           <Link href="/" aria-label="Back to dashboard" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-zinc-400 transition hover:bg-white/10 hover:text-white">
@@ -544,6 +547,7 @@ export default function TrainingPage() {
             </div>
           ))}
         </div>
+      </div>
       </div>
     </main>
   );
