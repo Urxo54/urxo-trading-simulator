@@ -66,7 +66,7 @@ jobs:
           for (const instrument of instruments) {
             const file = path.join(directory, `${instrument}-three-day-smoke.csv`);
             const csv = await readFile(file, "utf8");
-            const [header, ...lines] = csv.trim().split(/\\r?\\n/);
+            const [header, ...lines] = csv.trim().split(/\r?\n/);
             assert.equal(header, "timestamp,open,high,low,close", `${instrument}: unexpected CSV header`);
 
             const rows = lines.filter(Boolean).map((line) => line.split(",").map(Number));
