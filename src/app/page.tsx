@@ -65,11 +65,11 @@ export default function Home() {
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
-        const events = buffer.split("\\n\\n");
+        const events = buffer.split("\n\n");
         buffer = events.pop() ?? "";
 
         for (const event of events) {
-          const dataLine = event.split("\\n").find((line) => line.startsWith("data: "));
+          const dataLine = event.split("\n").find((line) => line.startsWith("data: "));
           if (!dataLine) continue;
           const data = JSON.parse(dataLine.slice(6)) as ImportEvent;
 
