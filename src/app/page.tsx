@@ -7,9 +7,7 @@ import Sidebar from "@/components/sidebar";
 import {
   Activity,
   AlertCircle,
-  BarChart3,
   CheckCircle2,
-  CandlestickChart,
   ChevronRight,
   Crosshair,
   LoaderCircle,
