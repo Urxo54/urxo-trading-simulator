@@ -7,7 +7,8 @@ import {
   type ISeriesApi,
   type Time,
 } from "lightweight-charts";
-import { Crosshair, Minus, Pencil, Plus, StickyNote, Trash2, X } from "lucide-react";
+import { Crosshair, Minus, StickyNote, Trash2 } from "lucide-react";
+import { calculateTradePnl, getTriggeredExit, isValidOrderLevels } from "@/lib/trading-logic";
 
 type Instrument = "eurusd" | "xauusd" | "usatechidxusd";
 type Side = "BUY" | "SELL";
@@ -36,11 +37,6 @@ type Props = {
 };
 
 const STORAGE_KEY = "urxo-trading-workspace-v1";
-const contractSize: Record<Instrument, number> = {
-  eurusd: 100000,
-  xauusd: 100,
-  usatechidxusd: 1,
-};
 const instrumentLabel: Record<Instrument, string> = {
   eurusd: "EUR/USD",
   xauusd: "XAU/USD",
@@ -85,10 +81,8 @@ export default function TradingWorkspace({ chart, series, instrument, price, rep
     [trades, instrument],
   );
 
-  const calculatePnl = useCallback((trade: Trade, mark: number) => {
-    const direction = trade.side === "BUY" ? 1 : -1;
-    return (mark - trade.entry) * direction * trade.volume * contractSize[trade.instrument];
-  }, []);
+  const calculatePnl = useCallback((trade: Trade, mark: number) =>
+    calculateTradePnl(trade.instrument, trade.side, trade.volume, trade.entry, mark), []);
 
   useEffect(() => {
     if (price === null || replayTime === null) return;
@@ -96,12 +90,10 @@ export default function TradingWorkspace({ chart, series, instrument, price, rep
       let changed = false;
       const next = current.map((trade) => {
         if (trade.status !== "open" || trade.instrument !== instrument) return trade;
-        const hitStop = trade.stopLoss !== null && (trade.side === "BUY" ? price <= trade.stopLoss : price >= trade.stopLoss);
-        const hitTarget = trade.takeProfit !== null && (trade.side === "BUY" ? price >= trade.takeProfit : price <= trade.takeProfit);
-        if (!hitStop && !hitTarget) return trade;
+        const exit = getTriggeredExit(trade.side, price, trade.stopLoss, trade.takeProfit);
+        if (!exit) return trade;
         changed = true;
-        const exitPrice = hitStop ? trade.stopLoss as number : trade.takeProfit as number;
-        return { ...trade, status: "closed" as const, closedAt: replayTime, closePrice: exitPrice };
+        return { ...trade, status: "closed" as const, closedAt: replayTime, closePrice: exit.price };
       });
       if (changed) setMessage("Сделка автоматически закрыта: достигнут уровень SL или TP.");
       return changed ? next : current;
@@ -178,16 +170,10 @@ export default function TradingWorkspace({ chart, series, instrument, price, rep
       setMessage("Объём должен быть больше 0 и не более 100 лотов.");
       return;
     }
-    if ((sl !== null && (!Number.isFinite(sl) || sl <= 0)) || (tp !== null && (!Number.isFinite(tp) || tp <= 0))) {
-      setMessage("Проверь значения Stop Loss и Take Profit.");
-      return;
-    }
-    if (side === "BUY" && ((sl !== null && sl >= price) || (tp !== null && tp <= price))) {
-      setMessage("Для BUY: SL ниже цены входа, TP выше цены входа.");
-      return;
-    }
-    if (side === "SELL" && ((sl !== null && sl <= price) || (tp !== null && tp >= price))) {
-      setMessage("Для SELL: SL выше цены входа, TP ниже цены входа.");
+    if (!isValidOrderLevels(side, price, sl, tp)) {
+      setMessage(side === "BUY"
+        ? "Для BUY: SL ниже цены входа, TP выше цены входа."
+        : "Для SELL: SL выше цены входа, TP ниже цены входа.");
       return;
     }
     setTrades((current) => [{
