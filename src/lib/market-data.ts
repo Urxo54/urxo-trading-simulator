@@ -30,8 +30,41 @@ export type CsvInspection = {
   modifiedAt: string;
 };
 
-export async function inspectHistoricalCsv(filePath: string): Promise<CsvInspection> {
+type InspectionCacheEntry = {
+  sizeBytes: number;
+  modifiedAtMs: number;
+  checkedAt: number;
+  result: CsvInspection;
+};
+
+const inspectionCache = new Map<string, InspectionCacheEntry>();
+const inspectionRefreshIntervalMs = 5000;
+
+export async function inspectHistoricalCsv(
+  filePath: string,
+  options: { force?: boolean } = {},
+): Promise<CsvInspection> {
   const fileStats = await stat(filePath);
+  const modifiedAt = fileStats.mtime.toISOString();
+  const cached = inspectionCache.get(filePath);
+
+  if (!options.force && cached) {
+    if (
+      cached.sizeBytes === fileStats.size &&
+      cached.modifiedAtMs === fileStats.mtimeMs
+    ) {
+      return cached.result;
+    }
+
+    if (Date.now() - cached.checkedAt < inspectionRefreshIntervalMs) {
+      return {
+        ...cached.result,
+        sizeBytes: fileStats.size,
+        modifiedAt,
+      };
+    }
+  }
+
   const lines = createInterface({
     input: createReadStream(filePath, { encoding: "utf8" }),
     crlfDelay: Infinity,
@@ -76,11 +109,20 @@ export async function inspectHistoricalCsv(filePath: string): Promise<CsvInspect
     if (lastTimestamp === null || timestamp > lastTimestamp) lastTimestamp = timestamp;
   }
 
-  return {
+  const result: CsvInspection = {
     count,
     firstTimestamp,
     lastTimestamp,
     sizeBytes: fileStats.size,
-    modifiedAt: fileStats.mtime.toISOString(),
+    modifiedAt,
   };
+
+  inspectionCache.set(filePath, {
+    sizeBytes: fileStats.size,
+    modifiedAtMs: fileStats.mtimeMs,
+    checkedAt: Date.now(),
+    result,
+  });
+
+  return result;
 }
