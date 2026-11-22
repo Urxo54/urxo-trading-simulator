@@ -32,11 +32,16 @@ const menu = [
 ];
 
 type ImportEvent = {
-  type: "progress" | "log" | "completed" | "done" | "error";
+  type: "progress" | "month-completed" | "log" | "completed" | "done" | "error";
   instrument?: string;
   label?: string;
   current?: number;
   total?: number;
+  month?: string;
+  monthCurrent?: number;
+  monthTotal?: number;
+  completedUnits?: number;
+  totalUnits?: number;
   message?: string;
   count?: number;
   sizeBytes?: number;
@@ -90,12 +95,51 @@ export default function Home() {
     };
   }, [importing]);
 
-  async function importJanuary() {
+  async function importHistoricalData() {
     setImporting(true);
     setImportProgress(0);
     setImportResults([]);
     setImportFailed(false);
-    setImportStatus("Connecting to Dukascopy...");
+    setImportStatus("Preparing monthly historical download...");
+
+    let receivedDoneEvent = false;
+
+    const handleEvent = (rawEvent: string) => {
+      const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data: "));
+      if (!dataLine) return;
+
+      let data: ImportEvent;
+      try {
+        data = JSON.parse(dataLine.slice(6)) as ImportEvent;
+      } catch {
+        throw new Error("The download service sent an unreadable progress update.");
+      }
+
+      if (data.type === "progress") {
+        const completed = data.completedUnits ?? 0;
+        const total = data.totalUnits ?? 72;
+        setImportProgress(Math.min(99, Math.round((completed / total) * 100)));
+        setImportStatus(data.message ?? "Downloading historical candles...");
+      } else if (data.type === "month-completed") {
+        const completed = data.completedUnits ?? 0;
+        const total = data.totalUnits ?? 72;
+        setImportProgress(Math.min(99, Math.round((completed / total) * 100)));
+        setImportStatus(
+          `${data.label ?? "Market"} · ${data.month ?? "Month"} verified · ${completed}/${total} monthly files`,
+        );
+      } else if (data.type === "completed") {
+        setImportResults((previous) => [
+          ...previous,
+          `✓ ${data.label}: ${Number(data.count ?? 0).toLocaleString()} candles · ${formatBytes(data.sizeBytes ?? 0)}`,
+        ]);
+      } else if (data.type === "done") {
+        receivedDoneEvent = true;
+        setImportProgress(100);
+        setImportStatus(data.message ?? "Download complete.");
+      } else if (data.type === "error") {
+        throw new Error(data.message ?? "Historical data download failed.");
+      }
+    };
 
     try {
       const response = await fetch("/api/import-history", { method: "POST" });
@@ -115,41 +159,13 @@ export default function Home() {
 
         const events = buffer.split("\n\n");
         buffer = events.pop() ?? "";
+        for (const event of events) handleEvent(event);
+      }
 
-        for (const event of events) {
-          const dataLine = event.split("\n").find((line) => line.startsWith("data: "));
-          if (!dataLine) continue;
-
-          let data: ImportEvent;
-          try {
-            data = JSON.parse(dataLine.slice(6)) as ImportEvent;
-          } catch {
-            throw new Error("The download service sent an unreadable progress update.");
-          }
-
-          if (data.type === "progress") {
-            setImportStatus(data.message ?? "Downloading...");
-            setImportProgress(
-              Math.round((((data.current ?? 1) - 1) / (data.total ?? 3)) * 100),
-            );
-            setImportResults((previous) => [...previous, data.message ?? ""]);
-          } else if (data.type === "log") {
-            setImportStatus(data.message ?? "Downloading...");
-          } else if (data.type === "completed") {
-            const completedCount =
-              data.instrument === "eurusd" ? 1 : data.instrument === "xauusd" ? 2 : 3;
-            setImportProgress(Math.round((completedCount / 3) * 100));
-            setImportResults((previous) => [
-              ...previous,
-              `✓ ${data.label}: ${Number(data.count ?? 0).toLocaleString()} candles · ${formatBytes(data.sizeBytes ?? 0)}`,
-            ]);
-          } else if (data.type === "done") {
-            setImportProgress(100);
-            setImportStatus(data.message ?? "Download complete.");
-          } else if (data.type === "error") {
-            throw new Error(data.message ?? "Historical data download failed.");
-          }
-        }
+      buffer += decoder.decode();
+      if (buffer.trim()) handleEvent(buffer);
+      if (!receivedDoneEvent) {
+        throw new Error("The connection closed before the download was verified. Check the dataset status and try again.");
       }
     } catch (error) {
       setImportFailed(true);
@@ -312,7 +328,7 @@ export default function Home() {
                   <span className="rounded-md bg-white/5 px-2 py-1 text-[10px] text-zinc-300">DUKASCOPY</span>
                 </div>
                 <button
-                  onClick={importJanuary}
+                  onClick={importHistoricalData}
                   disabled={importing}
                   className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
