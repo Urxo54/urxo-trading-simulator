@@ -24,9 +24,16 @@ export function getTriggeredExit(
   mark: number,
   stopLoss: number | null,
   takeProfit: number | null,
+  candleHigh: number | null = null,
+  candleLow: number | null = null,
 ): { reason: "stop-loss" | "take-profit"; price: number } | null {
-  const hitStop = stopLoss !== null && (side === "BUY" ? mark <= stopLoss : mark >= stopLoss);
-  const hitTarget = takeProfit !== null && (side === "BUY" ? mark >= takeProfit : mark <= takeProfit);
+  const high = candleHigh ?? mark;
+  const low = candleLow ?? mark;
+  const hitStop = stopLoss !== null && (side === "BUY" ? low <= stopLoss : high >= stopLoss);
+  const hitTarget = takeProfit !== null && (side === "BUY" ? high >= takeProfit : low <= takeProfit);
+
+  // If a single historical candle crosses both levels, assume the less favourable
+  // outcome because minute OHLC data cannot reveal which level was reached first.
   if (hitStop) return { reason: "stop-loss", price: stopLoss };
   if (hitTarget) return { reason: "take-profit", price: takeProfit };
   return null;
