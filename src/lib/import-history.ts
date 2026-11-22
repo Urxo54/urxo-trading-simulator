@@ -44,7 +44,7 @@ export function buildDukascopyArgs(options: {
   const { instrument, range, directory, fileName } = options;
   return [
     "--yes",
-    "dukascopy-node",
+    "dukascopy-node@1.51.1",
     "-i",
     instrument,
     "-from",
