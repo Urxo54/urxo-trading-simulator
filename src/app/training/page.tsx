@@ -40,11 +40,11 @@ import {
 
 type Timeframe = "D1" | "H4" | "H1";
 type Instrument = "eurusd" | "xauusd" | "usatechidxusd";
-type DrawingTool = "cursor" | "horizontal" | "trend" | "rectangle" | "text" | "delete";
+type DrawingTool = "cursor" | "horizontal" | "line" | "trend" | "rectangle" | "text" | "delete";
 type ChartPoint = { time: number; price: number };
 type ChartMark =
   | { id: number; type: "horizontal" | "text"; a: ChartPoint; text?: string }
-  | { id: number; type: "trend" | "rectangle"; a: ChartPoint; b: ChartPoint };
+  | { id: number; type: "line" | "trend" | "rectangle"; a: ChartPoint; b: ChartPoint };
 
 const instrumentDetails: Record<
   Instrument,
@@ -382,7 +382,9 @@ export default function TrainingPage() {
     const bounds=event.currentTarget.getBoundingClientRect(),x=event.clientX-bounds.left,y=event.clientY-bounds.top;
     if(drawingTool==="cursor"){
       let hit:ChartMark|null=null,dist=14; marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hit=m;}});
-      setSelectedMarkId(hit?.id??null); dragRef.current=hit?{id:hit.id,start:point,original:hit}:null; return;
+      setSelectedMarkId(hit?.id??null); dragRef.current=hit?{id:hit.id,start:point,original:hit}:null;
+      if(hit){chartRef.current?.applyOptions({handleScroll:false,handleScale:false});event.stopPropagation();event.preventDefault();}
+      return;
     }
     if(drawingTool==="delete"){let hitId:number|null=null,dist=18;marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hitId=m.id;}});if(hitId!==null)setMarks(v=>v.filter(m=>m.id!==hitId));setSelectedMarkId(null);return;}
     if(drawingTool==="horizontal"){setMarks(v=>[...v,{id:nextMarkId.current++,type:"horizontal",a:point}]);return;}
@@ -393,11 +395,11 @@ export default function TrainingPage() {
 
   const handleChartPointerMove = (event: import("react").PointerEvent<HTMLDivElement>) => {
     const point=pointFromPointer(event);if(!point)return;
-    if(dragRef.current){const {id,start,original}=dragRef.current,dt=point.time-start.time,dp=point.price-start.price;
+    if(dragRef.current){chartRef.current?.setCrosshairPosition(point.price,point.time as Time,seriesRef.current!);const {id,start,original}=dragRef.current,dt=point.time-start.time,dp=point.price-start.price;
       setMarks(v=>v.map(m=>{if(m.id!==id)return m;const a={time:original.a.time+dt,price:original.a.price+dp};return "b" in original?{...original,a,b:{time:original.b.time+dt,price:original.b.price+dp}}:{...original,a};}));return;}
     if(pendingPoint)setPreviewPoint(point);
   };
-  const handleChartPointerUp = () => { dragRef.current=null; };
+  const handleChartPointerUp = () => { if(dragRef.current){dragRef.current=null;chartRef.current?.applyOptions({handleScroll:true,handleScale:true});chartRef.current?.clearCrosshairPosition();} };
 
   const toolButton = (tool: DrawingTool, label: string, Icon: typeof MousePointer2) => (
     <button key={tool} type="button" title={label} aria-label={label} onClick={() => {setDrawingTool(tool);setPendingPoint(null);setPreviewPoint(null);dragRef.current=null;}}
@@ -411,11 +413,11 @@ export default function TrainingPage() {
       if(m.type==="horizontal")return <g key={m.id}><line x1="0" x2="100%" y1={a.y} y2={a.y} stroke={active?"#fff":"#facc15"} strokeWidth={active?2.5:1.5} strokeDasharray="6 4"/><text x="8" y={a.y-6} fill={active?"#fff":"#facc15"} fontSize="11">{m.a.price.toFixed(selectedInstrument.decimals)}</text></g>;
       if(m.type==="text")return <text key={m.id} x={a.x+7} y={a.y-7} fill="white" fontSize="13" stroke="#080808" strokeWidth="3" paintOrder="stroke">{m.text}</text>;
       const b=xy(m.b);if(b.x===null||b.y===null)return null;
-      if(m.type==="trend")return <line key={m.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={active?"#fff":"#60a5fa"} strokeWidth={active?3:2} strokeDasharray={ghost?"5 4":undefined}/>;
+      if(m.type==="line"||m.type==="trend")return <line key={m.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={active?"#fff":m.type==="line"?"#f472b6":"#60a5fa"} strokeWidth={active?3:2} strokeDasharray={ghost?"5 4":undefined}/>;
       return <rect key={m.id} x={Math.min(a.x,b.x)} y={Math.min(a.y,b.y)} width={Math.abs(b.x-a.x)} height={Math.abs(b.y-a.y)} fill="rgba(96,165,250,0.12)" stroke={active?"#fff":"#60a5fa"} strokeWidth={active?2.5:1.5} strokeDasharray={ghost?"5 4":undefined}/>;
     };
     const out=marks.map(m=>draw(m));
-    if(pendingPoint&&previewPoint){const ghost:ChartMark=drawingTool==="trend"?{id:-1,type:"trend",a:pendingPoint,b:previewPoint}:{id:-1,type:"rectangle",a:pendingPoint,b:previewPoint};out.push(draw(ghost,true));}
+    if(pendingPoint&&previewPoint){const ghost:ChartMark=drawingTool==="line"?{id:-1,type:"line",a:pendingPoint,b:previewPoint}:drawingTool==="trend"?{id:-1,type:"trend",a:pendingPoint,b:previewPoint}:{id:-1,type:"rectangle",a:pendingPoint,b:previewPoint};out.push(draw(ghost,true));}
     return out;
   })();
   useEffect(() => {
@@ -494,6 +496,7 @@ export default function TrainingPage() {
             <div className="absolute left-3 top-3 z-20 flex flex-wrap gap-1 rounded-xl border border-white/10 bg-[#111111]/95 p-1.5 shadow-xl">
               {toolButton("cursor", "Курсор", MousePointer2)}
               {toolButton("horizontal", "Горизонтальная линия", HorizontalLineIcon)}
+              {toolButton("line", "Линия (от точки до точки)", Minus)}
               {toolButton("trend", "Трендовая линия", TrendingUp)}
               {toolButton("rectangle", "Прямоугольник", Square)}
               {toolButton("text", "Текстовая заметка", Type)}
@@ -509,7 +512,7 @@ export default function TrainingPage() {
                 className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10 disabled:opacity-30"><Trash2 size={16} /></button>
             </div>
             {drawingTool !== "cursor" && <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-lg border border-white/10 bg-[#111111]/90 px-3 py-2 text-[11px] text-zinc-300">{pendingPoint ? "Двигай мышь для размера · второй клик — зафиксировать" : "Первый клик — начальная точка"}</div>}
-            <div ref={chartContainerRef} onPointerDown={handleChartPointerDown} onPointerMove={handleChartPointerMove} onPointerUp={handleChartPointerUp} onPointerCancel={handleChartPointerUp} className={`absolute inset-0 w-full transition-opacity ${hasData ? "opacity-100" : "pointer-events-none opacity-0"}`} />
+            <div ref={chartContainerRef} onPointerDownCapture={handleChartPointerDown} onPointerMove={handleChartPointerMove} onPointerUp={handleChartPointerUp} onPointerCancel={handleChartPointerUp} className={`absolute inset-0 w-full transition-opacity ${hasData ? "opacity-100" : "pointer-events-none opacity-0"}`} />
             {hasData && <svg key={overlayVersion} className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible">{drawingMarkup}</svg>}
             {loading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-[#080808]">
