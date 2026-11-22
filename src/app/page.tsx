@@ -12,7 +12,6 @@ import {
   Crosshair,
   LoaderCircle,
   Play,
-  ShieldCheck,
   TrendingUp,
   Upload,
   Wallet,
