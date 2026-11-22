@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -15,7 +14,6 @@ import {
 import {
   ArrowLeft,
   BarChart3,
-  ChevronDown,
   Maximize2,
   Minus,
   Plus,
@@ -23,50 +21,63 @@ import {
 } from "lucide-react";
 
 type Timeframe = "D1" | "H4" | "H1";
+type Instrument = "eurusd" | "xauusd" | "usatechidxusd";
 
-function generateCandles(timeframe: Timeframe): CandlestickData<Time>[] {
-  const candles: CandlestickData<Time>[] = [];
-  const now = Math.floor(Date.now() / 1000);
-  const interval =
-    timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600;
+const instrumentDetails: Record<
+  Instrument,
+  { label: string; shortLabel: string; description: string; decimals: number }
+> = {
+  eurusd: {
+    label: "EUR/USD",
+    shortLabel: "EURUSD",
+    description: "Euro / US Dollar",
+    decimals: 5,
+  },
+  xauusd: {
+    label: "Gold (XAU/USD)",
+    shortLabel: "XAUUSD",
+    description: "Gold / US Dollar",
+    decimals: 2,
+  },
+  usatechidxusd: {
+    label: "NAS100",
+    shortLabel: "NAS100",
+    description: "US 100 Tech Index",
+    decimals: 2,
+  },
+};
 
-  let price = 1.085;
-
-  for (let i = 100; i >= 0; i--) {
-    const time = (now - i * interval) as Time;
-    const open = price;
-    const change = (Math.random() - 0.48) * 0.008;
-    const close = open + change;
-    const high = Math.max(open, close) + Math.random() * 0.002;
-    const low = Math.min(open, close) - Math.random() * 0.002;
-
-    candles.push({
-      time,
-      open,
-      high,
-      low,
-      close,
-    });
-
-    price = close;
-  }
-
-  return candles;
-}
+type HistoricalResponse = {
+  instrument: Instrument;
+  timeframe: Timeframe;
+  source: string;
+  dateRange: string;
+  count: number;
+  candles: CandlestickData<Time>[];
+  error?: string;
+};
 
 export default function TrainingPage() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
 
+  const [instrument, setInstrument] = useState<Instrument>("eurusd");
   const [timeframe, setTimeframe] = useState<Timeframe>("H1");
-  const [lastPrice, setLastPrice] = useState("1.08500");
+  const [lastPrice, setLastPrice] = useState("—");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [candleCount, setCandleCount] = useState(0);
+  const [dateRange, setDateRange] = useState("January 2025");
+
+  const selectedInstrument = instrumentDetails[instrument];
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    const container = chartContainerRef.current;
+    if (!container) return;
 
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
+    const chart = createChart(container, {
+      width: container.clientWidth,
       height: 520,
       layout: {
         background: { type: ColorType.Solid, color: "#080808" },
@@ -111,24 +122,15 @@ export default function TrainingPage() {
       wickDownColor: "#777777",
     });
 
-    const candles = generateCandles(timeframe);
-    series.setData(candles);
-
-    chart.timeScale().fitContent();
-
     chartRef.current = chart;
     seriesRef.current = series;
 
-    setLastPrice(candles[candles.length - 1].close.toFixed(5));
-
     const resizeObserver = new ResizeObserver((entries) => {
       if (!entries[0]) return;
-      chart.applyOptions({
-        width: entries[0].contentRect.width,
-      });
+      chart.applyOptions({ width: entries[0].contentRect.width });
     });
 
-    resizeObserver.observe(chartContainerRef.current);
+    resizeObserver.observe(container);
 
     return () => {
       resizeObserver.disconnect();
@@ -136,7 +138,55 @@ export default function TrainingPage() {
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [timeframe]);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadHistoricalData() {
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await fetch(
+          `/api/historical/${instrument}?timeframe=${timeframe}`,
+          { signal: controller.signal, cache: "no-store" },
+        );
+        const result = (await response.json()) as HistoricalResponse;
+
+        if (!response.ok) {
+          throw new Error(result.error ?? "Could not load historical data.");
+        }
+
+        if (!seriesRef.current || !chartRef.current) return;
+
+        seriesRef.current.setData(result.candles);
+        chartRef.current.timeScale().fitContent();
+
+        const lastCandle = result.candles[result.candles.length - 1];
+        setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
+        setCandleCount(result.count);
+        setDateRange(result.dateRange);
+      } catch (loadError) {
+        if (loadError instanceof Error && loadError.name === "AbortError") {
+          return;
+        }
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Could not load historical data.",
+        );
+        setLastPrice("—");
+        setCandleCount(0);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+
+    void loadHistoricalData();
+
+    return () => controller.abort();
+  }, [instrument, timeframe, selectedInstrument.decimals]);
 
   return (
     <main className="min-h-screen bg-[#080808] text-white">
@@ -159,26 +209,55 @@ export default function TrainingPage() {
           <div className="ml-4 hidden h-8 w-px bg-white/10 sm:block" />
 
           <div className="hidden sm:block">
-            <p className="text-sm font-semibold">EUR / USD</p>
-            <p className="text-[10px] text-zinc-500">Euro / US Dollar</p>
+            <p className="text-sm font-semibold">{selectedInstrument.label}</p>
+            <p className="text-[10px] text-zinc-500">
+              {selectedInstrument.description}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="rounded-lg border border-white/10 px-3 py-2 text-[10px] tracking-wider text-zinc-400">
-            DEMO DATA
+            HISTORICAL DATA
           </span>
-          <button className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10">
+          <button
+            aria-label="Settings"
+            className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10"
+          >
             <Settings2 size={17} />
           </button>
         </div>
       </header>
 
       <div className="mx-auto max-w-[1600px] p-4 md:p-7">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs text-zinc-500">Market / Forex / EURUSD</p>
-            <h2 className="mt-1 text-xl font-semibold">EUR/USD</h2>
+            <p className="text-xs text-zinc-500">
+              Market / Historical Replay / {selectedInstrument.shortLabel}
+            </p>
+            <h2 className="mt-1 text-xl font-semibold">
+              {selectedInstrument.label}
+            </h2>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {(Object.keys(instrumentDetails) as Instrument[]).map((key) => (
+              <button
+                key={key}
+                onClick={() => setInstrument(key)}
+                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                  instrument === key
+                    ? "border-white bg-white text-black"
+                    : "border-white/10 bg-[#111111] text-zinc-500 hover:text-white"
+                }`}
+              >
+                {key === "eurusd"
+                  ? "EUR/USD"
+                  : key === "xauusd"
+                    ? "GOLD"
+                    : "NAS100"}
+              </button>
+            ))}
           </div>
 
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#111111] p-1">
@@ -208,34 +287,58 @@ export default function TrainingPage() {
 
             <div className="flex items-center gap-4 text-zinc-500">
               <span className="text-xs">
-                O <span className="text-zinc-300">{lastPrice}</span>
+                Last <span className="text-zinc-300">{lastPrice}</span>
               </span>
-              <button className="hover:text-white"><Minus size={15} /></button>
-              <button className="hover:text-white"><Plus size={15} /></button>
-              <button className="hover:text-white"><Maximize2 size={15} /></button>
+              <button aria-label="Zoom out" className="hover:text-white">
+                <Minus size={15} />
+              </button>
+              <button aria-label="Zoom in" className="hover:text-white">
+                <Plus size={15} />
+              </button>
+              <button aria-label="Maximize chart" className="hover:text-white">
+                <Maximize2 size={15} />
+              </button>
             </div>
           </div>
 
           <div className="p-2 md:p-4">
             <div ref={chartContainerRef} className="w-full" />
+            {loading && (
+              <p className="px-3 py-2 text-xs text-zinc-500">
+                Loading historical candles...
+              </p>
+            )}
+            {error && (
+              <p className="px-3 py-2 text-xs text-red-400">{error}</p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] px-5 py-3">
             <span className="text-[10px] text-zinc-600">
-              EURUSD · {timeframe} · Candlestick
+              {selectedInstrument.shortLabel} · {timeframe} · Candlestick ·{" "}
+              {dateRange}
             </span>
             <div className="flex items-center gap-2 text-[10px] text-zinc-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-white" />
-              Chart engine active
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  error ? "bg-red-400" : loading ? "bg-zinc-500" : "bg-white"
+                }`}
+              />
+              {error ? "Data error" : loading ? "Loading data" : "Data loaded"}
             </div>
           </div>
         </section>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
           {[
-            { label: "Instrument", value: "EUR / USD" },
+            { label: "Instrument", value: selectedInstrument.label },
             { label: "Timeframe", value: timeframe },
-            { label: "Data source", value: "Demo candles" },
+            {
+              label: "Data source",
+              value: loading ? "Loading..." : error ? "Unavailable" : "Dukascopy CSV",
+            },
+            { label: "Historical period", value: dateRange },
+            { label: "Candles on chart", value: loading ? "—" : String(candleCount) },
           ].map((item) => (
             <div
               key={item.label}
