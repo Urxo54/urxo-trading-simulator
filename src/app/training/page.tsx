@@ -200,9 +200,7 @@ export default function TrainingPage() {
     setChartReady(true);
 
     const refreshOverlay = () => setOverlayVersion((value) => value + 1);
-    const priceScale = chart.priceScale("right");
     chart.timeScale().subscribeVisibleTimeRangeChange(refreshOverlay);
-    priceScale.subscribeVisiblePriceRangeChange(refreshOverlay);
     const resizeObserver = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width;
       if (width && width > 0) chart.applyOptions({ width });
@@ -212,7 +210,6 @@ export default function TrainingPage() {
     return () => {
       resizeObserver.disconnect();
       chart.timeScale().unsubscribeVisibleTimeRangeChange(refreshOverlay);
-      priceScale.unsubscribeVisiblePriceRangeChange(refreshOverlay);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
@@ -468,6 +465,7 @@ export default function TrainingPage() {
   };
 
   const handleChartPointerMove = (event: import("react").PointerEvent<HTMLDivElement>) => {
+    setOverlayVersion((value) => value + 1);
     let point=pointFromPointer(event);if(!point)return;
     if(dragRef.current){chartRef.current?.setCrosshairPosition(point.price,point.time as Time,seriesRef.current!);const {id,start,original}=dragRef.current,dt=point.time-start.time,dp=point.price-start.price;
       setMarks(v=>v.map(m=>{if(m.id!==id)return m;const a={time:original.a.time+dt,price:original.a.price+dp};return "b" in original?{...original,a,b:{time:original.b.time+dt,price:original.b.price+dp}}:{...original,a};}));return;}
