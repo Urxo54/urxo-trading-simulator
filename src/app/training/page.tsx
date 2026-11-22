@@ -442,6 +442,8 @@ export default function TrainingPage() {
           instrument={instrument}
           price={lastPrice === "—" ? null : Number(lastPrice)}
           replayTime={currentReplayTime}
+          candleHigh={currentIndex >= 0 ? allCandlesRef.current[currentIndex]?.high ?? null : null}
+          candleLow={currentIndex >= 0 ? allCandlesRef.current[currentIndex]?.low ?? null : null}
           decimals={selectedInstrument.decimals}
         />
 
