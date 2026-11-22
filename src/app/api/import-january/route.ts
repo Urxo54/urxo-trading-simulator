@@ -21,7 +21,7 @@ function send(
   controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
 }
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   if (importInProgress) {
     return Response.json(
       { error: "An import is already running." },
