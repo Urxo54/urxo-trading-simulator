@@ -39,7 +39,7 @@ type ImportEvent = {
 
 export default function Home() {
   const [importing, setImporting] = useState(false);
-  const [importStatus, setImportStatus] = useState("Ready to import January 2025.");
+  const [importStatus, setImportStatus] = useState("Ready to import 2024–2025 historical data.");
   const [importProgress, setImportProgress] = useState(0);
   const [importResults, setImportResults] = useState<string[]>([]);
 
@@ -50,7 +50,7 @@ export default function Home() {
     setImportStatus("Connecting to Dukascopy...");
 
     try {
-      const response = await fetch("/api/import-january", { method: "POST" });
+      const response = await fetch("/api/import-history", { method: "POST" });
       if (!response.ok || !response.body) {
         const result = await response.json().catch(() => null);
         throw new Error(result?.error ?? "Could not start import.");
@@ -237,8 +237,8 @@ export default function Home() {
               <div className="rounded-xl border border-white/10 bg-black/30 p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium">January 2025 · M1</p>
-                    <p className="mt-1 text-xs text-zinc-500">EUR/USD · Gold · NAS100</p>
+                    <p className="text-sm font-medium">2024–2025 · M1</p>
+                    <p className="mt-1 text-xs text-zinc-500">EUR/USD · Gold · NAS100 · 2 years</p>
                   </div>
                   <span className="rounded-md bg-white/5 px-2 py-1 text-[10px] text-zinc-300">DUKASCOPY</span>
                 </div>
@@ -248,7 +248,7 @@ export default function Home() {
                   className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Upload size={16} />
-                  {importing ? "Importing January..." : "Import January 2025"}
+                  {importing ? "Importing 2024–2025..." : "Download 2024–2025 candles"}
                 </button>
                 <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
                   <div className="h-full rounded-full bg-white transition-all" style={{ width: `${importProgress}%` }} />
