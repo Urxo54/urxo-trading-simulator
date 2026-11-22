@@ -95,7 +95,7 @@ export default function TrainingPage() {
   const [previewPoint, setPreviewPoint] = useState<ChartPoint | null>(null);
   const [selectedMarkId, setSelectedMarkId] = useState<number | null>(null);
   const dragRef = useRef<{ id: number; start: ChartPoint; original: ChartMark } | null>(null);
-  const [overlayVersion, setOverlayVersion] = useState(0);
+  const [, setOverlayVersion] = useState(0);
   const nextMarkId = useRef(1);
 
   const selectedInstrument = instrumentDetails[instrument];
@@ -416,7 +416,7 @@ export default function TrainingPage() {
     return chart.timeScale().logicalToCoordinate(logical);
   };
 
-  const snapLinePoint = (origin: ChartPoint, target: ChartPoint, bounds: DOMRect): ChartPoint => {
+  const snapLinePoint = (origin: ChartPoint, target: ChartPoint): ChartPoint => {
     const chart = chartRef.current;
     const series = seriesRef.current;
     if (!chart || !series) return target;
@@ -436,7 +436,7 @@ export default function TrainingPage() {
   const markDistance = (mark: ChartMark, x: number, y: number) => {
     const chart = chartRef.current; const series = seriesRef.current;
     if (!chart || !series) return Infinity;
-    const xy = (p: ChartPoint) => ({ x: chart.timeScale().timeToCoordinate(p.time as Time), y: series.priceToCoordinate(p.price) });
+    const xy = (p: ChartPoint) => ({ x: coordinateForTime(p.time), y: series.priceToCoordinate(p.price) });
     const a = xy(mark.a); if (a.x === null || a.y === null) return Infinity;
     if (mark.type === "horizontal") return Math.abs(y-a.y);
     if (mark.type === "text") return Math.hypot(x-a.x,y-a.y);
@@ -460,7 +460,7 @@ export default function TrainingPage() {
     if(drawingTool==="horizontal"){setMarks(v=>[...v,{id:nextMarkId.current++,type:"horizontal",a:point}]);return;}
     if(drawingTool==="text"){const value=window.prompt("Текст заметки:");if(value?.trim())setMarks(v=>[...v,{id:nextMarkId.current++,type:"text",a:point,text:value.trim()}]);return;}
     if(!pendingPoint){setPendingPoint(point);setPreviewPoint(point);return;}
-    if(drawingTool === "line" && event.shiftKey){const bounds=event.currentTarget.getBoundingClientRect();point=snapLinePoint(pendingPoint,point,bounds);}
+    if(drawingTool === "line" && event.shiftKey){point=snapLinePoint(pendingPoint,point);}
     setMarks(v=>[...v,{id:nextMarkId.current++,type:drawingTool,a:pendingPoint,b:point}]);setPendingPoint(null);setPreviewPoint(null);setDrawingTool("cursor");
   };
 
