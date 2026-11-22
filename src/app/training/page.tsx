@@ -289,14 +289,6 @@ export default function TrainingPage() {
             <h2 className="mt-1 text-xl font-semibold">{selectedInstrument.label}</h2>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {(Object.keys(instrumentDetails) as Instrument[]).map((key) => (
-              <button key={key} onClick={() => setInstrument(key)} className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${instrument === key ? "border-white bg-white text-black" : "border-white/10 bg-[#111111] text-zinc-500 hover:text-white"}`}>
-                {key === "eurusd" ? "EUR/USD" : key === "xauusd" ? "GOLD" : "NAS100"}
-              </button>
-            ))}
-          </div>
-
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#111111] p-1">
             {(["D1", "H4", "H1"] as Timeframe[]).map((tf) => (
               <button key={tf} onClick={() => setTimeframe(tf)} className={`rounded-lg px-5 py-2 text-xs font-semibold transition ${timeframe === tf ? "bg-white text-black" : "text-zinc-500 hover:text-white"}`}>
