@@ -110,7 +110,7 @@ export async function POST() {
             let inspection: Awaited<ReturnType<typeof inspectHistoricalCsv>> | null = null;
 
             try {
-              inspection = await inspectHistoricalCsv(monthlyPath);
+              inspection = await inspectHistoricalCsv(monthlyPath, { force: true });
               if (
                 inspection.count === 0 ||
                 inspection.firstTimestamp === null ||
@@ -184,7 +184,7 @@ export async function POST() {
               );
 
               if (cancelled) throw new Error("Download was cancelled.");
-              inspection = await inspectHistoricalCsv(monthlyPath);
+              inspection = await inspectHistoricalCsv(monthlyPath, { force: true });
               if (
                 inspection.count === 0 ||
                 inspection.firstTimestamp === null ||
@@ -241,7 +241,7 @@ export async function POST() {
             });
           }
 
-          const finalInspection = await inspectHistoricalCsv(assembledPath);
+          const finalInspection = await inspectHistoricalCsv(assembledPath, { force: true });
           const expectedStart = Date.UTC(2024, 0, 10);
           const expectedEnd = Date.UTC(2025, 11, 20);
           if (
