@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Sidebar from "@/components/sidebar";
 
 import {
   Activity,
@@ -10,26 +11,16 @@ import {
   CheckCircle2,
   CandlestickChart,
   ChevronRight,
-  CircleHelp,
-  Clock3,
   Crosshair,
-  Database,
-  LayoutDashboard,
   LoaderCircle,
   Play,
-  Settings,
   ShieldCheck,
   TrendingUp,
   Upload,
   Wallet,
 } from "lucide-react";
 
-const menu = [
-  { label: "Dashboard", icon: LayoutDashboard, active: true },
-  { label: "Training", icon: CandlestickChart },
-  { label: "Statistics", icon: BarChart3 },
-  { label: "History", icon: Clock3 },
-];
+
 
 type ImportEvent = {
   type: "progress" | "month-completed" | "log" | "completed" | "done" | "error";
@@ -189,65 +180,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#080808] text-white">
-      <aside className="fixed left-0 top-0 hidden h-screen w-[245px] border-r border-white/[0.08] bg-[#0c0c0c] p-6 lg:flex lg:flex-col">
-        <div className="mb-12 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black">
-            <Activity size={23} />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-[0.18em]">URXO</h1>
-            <p className="text-[10px] tracking-[0.2em] text-zinc-500">TRADING LAB</p>
-          </div>
-        </div>
-
-        <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-600">
-          Workspace
-        </p>
-
-        <nav className="space-y-2">
-          {menu.map((item) => (
-            <div
-              key={item.label}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm ${
-                item.active
-                  ? "bg-white/[0.09] font-medium text-white"
-                  : "text-zinc-500"
-              }`}
-            >
-              <item.icon size={18} />
-              {item.label}
-              {item.active && (
-                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-white" />
-              )}
-            </div>
-          ))}
-        </nav>
-
-        <div className="mt-10">
-          <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-600">
-            System
-          </p>
-          <div className="space-y-4 text-sm text-zinc-500">
-            <div className="flex items-center gap-3"><Database size={18} /> Market Data</div>
-            <div className="flex items-center gap-3"><Settings size={18} /> Settings</div>
-            <div className="flex items-center gap-3"><CircleHelp size={18} /> Help Center</div>
-          </div>
-        </div>
-
-        <div className="mt-auto rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <ShieldCheck size={17} className="text-white" />
-            <span className="text-xs font-medium">Simulation Mode</span>
-          </div>
-          <p className="text-[11px] leading-5 text-zinc-500">
-            Practice on historical market data without risking real money.
-          </p>
-          <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-white" />
-            System ready
-          </div>
-        </div>
-      </aside>
+      <Sidebar />
 
       <section className="min-h-screen lg:ml-[245px]">
         <header className="flex h-[76px] items-center justify-between border-b border-white/[0.08] px-6 md:px-10">
@@ -314,7 +247,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/[0.08] bg-[#111111] p-7">
+            <div id="market-data" className="rounded-2xl border border-white/[0.08] bg-[#111111] p-7">
               <div className="mb-6 flex items-center gap-3">
                 <div className="rounded-xl border border-white/10 bg-white/[0.06] p-3 text-white">
                   <Upload size={20} />
