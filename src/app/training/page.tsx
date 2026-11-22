@@ -122,6 +122,27 @@ export default function TrainingPage() {
     };
   }, []);
 
+  // Refit after React reveals the chart container. This avoids calculating
+  // the initial viewport while the loading overlay is still being displayed.
+  useEffect(() => {
+    if (!hasData || !chartRef.current || !chartContainerRef.current) return;
+
+    const frame = requestAnimationFrame(() => {
+      const chart = chartRef.current;
+      const container = chartContainerRef.current;
+      if (!chart || !container) return;
+
+      chart.applyOptions({
+        width: Math.max(container.clientWidth, 320),
+        height: 520,
+      });
+      chart.priceScale("right").applyOptions({ autoScale: true });
+      chart.timeScale().fitContent();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [hasData, candleCount]);
+
   useEffect(() => {
     if (!chartReady || !seriesRef.current || !chartRef.current) return;
 
@@ -160,9 +181,21 @@ export default function TrainingPage() {
           throw new Error("The data file did not contain valid chart candles.");
         }
 
-        // Do not reveal the chart until valid data has actually been applied.
-        seriesRef.current?.setData(validCandles);
-        chartRef.current?.timeScale().fitContent();
+        // Apply data, reset the time range to the exact loaded candle set,
+        // and autoscale the price axis before revealing the chart.
+        const chart = chartRef.current;
+        const series = seriesRef.current;
+        if (!chart || !series) {
+          throw new Error("The chart is not ready yet.");
+        }
+
+        series.setData(validCandles);
+        chart.priceScale("right").applyOptions({ autoScale: true });
+        chart.timeScale().setVisibleLogicalRange({
+          from: -1,
+          to: validCandles.length + 1,
+        });
+        chart.timeScale().fitContent();
 
         const lastCandle = validCandles[validCandles.length - 1];
         setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
