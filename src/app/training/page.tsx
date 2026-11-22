@@ -200,7 +200,9 @@ export default function TrainingPage() {
     setChartReady(true);
 
     const refreshOverlay = () => setOverlayVersion((value) => value + 1);
+    const priceScale = chart.priceScale("right");
     chart.timeScale().subscribeVisibleTimeRangeChange(refreshOverlay);
+    priceScale.subscribeVisiblePriceRangeChange(refreshOverlay);
     const resizeObserver = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width;
       if (width && width > 0) chart.applyOptions({ width });
@@ -210,6 +212,7 @@ export default function TrainingPage() {
     return () => {
       resizeObserver.disconnect();
       chart.timeScale().unsubscribeVisibleTimeRangeChange(refreshOverlay);
+      priceScale.unsubscribeVisiblePriceRangeChange(refreshOverlay);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
