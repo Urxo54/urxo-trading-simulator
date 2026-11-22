@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
-export const runtime = "nodejs";
 export const maxDuration = 600;
 
 let importInProgress = false;
