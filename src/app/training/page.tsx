@@ -465,10 +465,10 @@ export default function TrainingPage() {
   };
 
   const handleChartPointerMove = (event: import("react").PointerEvent<HTMLDivElement>) => {
-    const point=pointFromPointer(event);if(!point)return;
+    let point=pointFromPointer(event);if(!point)return;
     if(dragRef.current){chartRef.current?.setCrosshairPosition(point.price,point.time as Time,seriesRef.current!);const {id,start,original}=dragRef.current,dt=point.time-start.time,dp=point.price-start.price;
       setMarks(v=>v.map(m=>{if(m.id!==id)return m;const a={time:original.a.time+dt,price:original.a.price+dp};return "b" in original?{...original,a,b:{time:original.b.time+dt,price:original.b.price+dp}}:{...original,a};}));return;}
-    if(pendingPoint){if(drawingTool === "line" && event.shiftKey){const bounds=event.currentTarget.getBoundingClientRect();point=snapLinePoint(pendingPoint,point,bounds);}setPreviewPoint(point);}
+    if(pendingPoint){if(drawingTool === "line" && event.shiftKey){point=snapLinePoint(pendingPoint,point);}setPreviewPoint(point);}
   };
   const handleChartPointerUp = () => { if(dragRef.current){dragRef.current=null;chartRef.current?.applyOptions({handleScroll:true,handleScale:true});chartRef.current?.clearCrosshairPosition();} };
 
@@ -479,7 +479,7 @@ export default function TrainingPage() {
 
   const drawingMarkup = (() => {
     const chart=chartRef.current,series=seriesRef.current;if(!chart||!series)return null;
-    const xy=(p:ChartPoint)=>({x:chart.timeScale().timeToCoordinate(p.time as Time),y:series.priceToCoordinate(p.price)});
+    const xy=(p:ChartPoint)=>({x:coordinateForTime(p.time),y:series.priceToCoordinate(p.price)});
     const draw=(m:ChartMark,ghost=false)=>{const a=xy(m.a);if(a.x===null||a.y===null)return null;const active=m.id===selectedMarkId;
       if(m.type==="horizontal")return <g key={m.id}><line x1="0" x2="100%" y1={a.y} y2={a.y} stroke={active?"#fff":"#facc15"} strokeWidth={active?2.5:1.5} strokeDasharray="6 4"/><text x="8" y={a.y-6} fill={active?"#fff":"#facc15"} fontSize="11">{m.a.price.toFixed(selectedInstrument.decimals)}</text></g>;
       if(m.type==="text")return <text key={m.id} x={a.x+7} y={a.y-7} fill="white" fontSize="13" stroke="#080808" strokeWidth="3" paintOrder="stroke">{m.text}</text>;
