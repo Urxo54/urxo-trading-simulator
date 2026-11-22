@@ -94,7 +94,7 @@ export default function TrainingPage() {
   const [pendingPoint, setPendingPoint] = useState<ChartPoint | null>(null);
   const [previewPoint, setPreviewPoint] = useState<ChartPoint | null>(null);
   const [selectedMarkId, setSelectedMarkId] = useState<number | null>(null);
-  const dragRef = useRef<{ id: number; start: ChartPoint; original: ChartMark } | null>(null);
+  const dragRef = useRef<{ id: number; mode: "move" | "resize-a" | "resize-b"; start: ChartPoint; original: ChartMark } | null>(null);
   const [, setOverlayVersion] = useState(0);
   const nextMarkId = useRef(1);
 
@@ -451,8 +451,25 @@ export default function TrainingPage() {
     let point=pointFromPointer(event); if(!point)return;
     const bounds=event.currentTarget.getBoundingClientRect(),x=event.clientX-bounds.left,y=event.clientY-bounds.top;
     if(drawingTool==="cursor"){
-      let hit:ChartMark|null=null,dist=14; marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hit=m;}});
-      setSelectedMarkId(hit?.id??null); dragRef.current=hit?{id:hit.id,start:point,original:hit}:null;
+      const selected = marks.find(m => m.id === selectedMarkId);
+      let mode: "move" | "resize-a" | "resize-b" = "move";
+      if (selected && "b" in selected) {
+        const series = seriesRef.current;
+        if (series) {
+          const ax = coordinateForTime(selected.a.time), ay = series.priceToCoordinate(selected.a.price);
+          const bx = coordinateForTime(selected.b.time), by = series.priceToCoordinate(selected.b.price);
+          if (ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
+          else if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
+        }
+      } else if (selected?.type === "horizontal") {
+        const yPos = seriesRef.current?.priceToCoordinate(selected.a.price);
+        if (yPos !== null && yPos !== undefined && Math.abs(y-yPos) <= 10) mode = "resize-a";
+      }
+      let hit:ChartMark|null=null,dist=14;
+      if (selected && mode !== "move") hit = selected;
+      else marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hit=m;}});
+      setSelectedMarkId(hit?.id??null);
+      dragRef.current=hit?{id:hit.id,mode:hit===selected?mode:"move",start:point,original:hit}:null;
       if(hit){chartRef.current?.applyOptions({handleScroll:false,handleScale:false});event.stopPropagation();event.preventDefault();}
       return;
     }
@@ -467,8 +484,13 @@ export default function TrainingPage() {
   const handleChartPointerMove = (event: import("react").PointerEvent<HTMLDivElement>) => {
     setOverlayVersion((value) => value + 1);
     let point=pointFromPointer(event);if(!point)return;
-    if(dragRef.current){chartRef.current?.setCrosshairPosition(point.price,point.time as Time,seriesRef.current!);const {id,start,original}=dragRef.current,dt=point.time-start.time,dp=point.price-start.price;
-      setMarks(v=>v.map(m=>{if(m.id!==id)return m;const a={time:original.a.time+dt,price:original.a.price+dp};return "b" in original?{...original,a,b:{time:original.b.time+dt,price:original.b.price+dp}}:{...original,a};}));return;}
+    if(dragRef.current){chartRef.current?.setCrosshairPosition(point.price,point.time as Time,seriesRef.current!);const {id,mode,start,original}=dragRef.current,dt=point.time-start.time,dp=point.price-start.price;
+      setMarks(v=>v.map(m=>{if(m.id!==id)return m;
+        if(mode==="resize-a")return {...original,a:point} as ChartMark;
+        if(mode==="resize-b" && "b" in original)return {...original,b:point} as ChartMark;
+        const a={time:original.a.time+dt,price:original.a.price+dp};
+        return "b" in original?{...original,a,b:{time:original.b.time+dt,price:original.b.price+dp}}:{...original,a};
+      }));return;}
     if(pendingPoint){if(drawingTool === "line" && event.shiftKey){point=snapLinePoint(pendingPoint,point);}setPreviewPoint(point);}
   };
   const handleChartPointerUp = () => { if(dragRef.current){dragRef.current=null;chartRef.current?.applyOptions({handleScroll:true,handleScale:true});chartRef.current?.clearCrosshairPosition();} };
@@ -489,6 +511,15 @@ export default function TrainingPage() {
       return <rect key={m.id} x={Math.min(a.x,b.x)} y={Math.min(a.y,b.y)} width={Math.abs(b.x-a.x)} height={Math.abs(b.y-a.y)} fill="rgba(96,165,250,0.12)" stroke={active?"#fff":"#60a5fa"} strokeWidth={active?2.5:1.5} strokeDasharray={ghost?"5 4":undefined}/>;
     };
     const out=marks.map(m=>draw(m));
+    const selectedMark = marks.find(m => m.id === selectedMarkId);
+    if (selectedMark) {
+      const a = xy(selectedMark.a);
+      if (a.x !== null && a.y !== null) out.push(<circle key={`handle-a-${selectedMark.id}`} cx={selectedMark.type === "horizontal" ? "calc(100% - 28px)" : a.x} cy={a.y} r="5" fill="#080808" stroke="#ffffff" strokeWidth="2" />);
+      if ("b" in selectedMark) {
+        const b = xy(selectedMark.b);
+        if (b.x !== null && b.y !== null) out.push(<circle key={`handle-b-${selectedMark.id}`} cx={b.x} cy={b.y} r="5" fill="#080808" stroke="#ffffff" strokeWidth="2" />);
+      }
+    }
     if(pendingPoint&&previewPoint){const ghost:ChartMark=drawingTool==="line"?{id:-1,type:"line",a:pendingPoint,b:previewPoint}:{id:-1,type:"rectangle",a:pendingPoint,b:previewPoint};out.push(draw(ghost,true));}
     return out;
   })();
