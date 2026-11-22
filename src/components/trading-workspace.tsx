@@ -91,6 +91,24 @@ export default function TradingWorkspace({ chart, series, instrument, price, rep
   }, []);
 
   useEffect(() => {
+    if (price === null || replayTime === null) return;
+    setTrades((current) => {
+      let changed = false;
+      const next = current.map((trade) => {
+        if (trade.status !== "open" || trade.instrument !== instrument) return trade;
+        const hitStop = trade.stopLoss !== null && (trade.side === "BUY" ? price <= trade.stopLoss : price >= trade.stopLoss);
+        const hitTarget = trade.takeProfit !== null && (trade.side === "BUY" ? price >= trade.takeProfit : price <= trade.takeProfit);
+        if (!hitStop && !hitTarget) return trade;
+        changed = true;
+        const exitPrice = hitStop ? trade.stopLoss as number : trade.takeProfit as number;
+        return { ...trade, status: "closed" as const, closedAt: replayTime, closePrice: exitPrice };
+      });
+      if (changed) setMessage("Сделка автоматически закрыта: достигнут уровень SL или TP.");
+      return changed ? next : current;
+    });
+  }, [price, replayTime, instrument]);
+
+  useEffect(() => {
     if (!series) return;
     const lines = activeTrades.flatMap((trade) => {
       const result = [{
