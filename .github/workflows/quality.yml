@@ -84,7 +84,7 @@ jobs:
           BUILD_OUTCOME: ${{ steps.build.outcome }}
           DUKASCOPY_OUTCOME: ${{ steps.dukascopy.outcome }}
         run: |
-          if [ "$LINT_OUTCOME" != "success" ] || [ "$TYPES_OUTCOME" != "success" ] || [ "$TESTS_OUTCOME" != "success" ] || [ "$BUILD_OUTCOME" != "success" ]; then
+          if [ "$LINT_OUTCOME" != "success" ] || [ "$TYPES_OUTCOME" != "success" ] || [ "$TESTS_OUTCOME" != "success" ] || [ "$BUILD_OUTCOME" != "success" ] || [ "$DUKASCOPY_OUTCOME" != "success" ]; then
             echo "At least one quality check failed."
             exit 1
           fi
