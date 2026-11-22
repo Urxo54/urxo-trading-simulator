@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 600;
