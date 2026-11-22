@@ -17,6 +17,8 @@ import {
   LoaderCircle,
   Maximize2,
   Minus,
+  FastForward,
+  Rewind,
   Pause,
   Play,
   Plus,
@@ -451,7 +453,7 @@ export default function TrainingPage() {
               disabled={!hasData || currentIndex <= 0}
               onClick={() => revealCandlesAt(currentIndex - 50)}
               className="rounded-lg border border-white/10 p-2 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-            ><RewindIcon /></button>
+            ><Rewind size={17} /></button>
             <button
               aria-label="Предыдущая свеча"
               title="Предыдущая свеча"
@@ -479,7 +481,7 @@ export default function TrainingPage() {
               disabled={!hasData || currentIndex >= totalCandles - 1}
               onClick={() => revealCandlesAt(currentIndex + 50)}
               className="rounded-lg border border-white/10 p-2 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-            ><FastForwardIcon /></button>
+            ><FastForward size={17} /></button>
             <button
               aria-label="К последней свече"
               title="К последней свече"
@@ -522,7 +524,7 @@ export default function TrainingPage() {
           </div>
         </section>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
           {[
             { label: "Instrument", value: selectedInstrument.label },
             { label: "Timeframe", value: timeframe },
