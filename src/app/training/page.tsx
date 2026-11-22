@@ -17,9 +17,15 @@ import {
   LoaderCircle,
   Maximize2,
   Minus,
+  Pause,
+  Play,
   Plus,
   RefreshCw,
   Settings2,
+  SkipBack,
+  SkipForward,
+  StepBack,
+  StepForward,
 } from "lucide-react";
 
 type Timeframe = "D1" | "H4" | "H1";
@@ -62,6 +68,13 @@ export default function TrainingPage() {
   const [candleCount, setCandleCount] = useState(0);
   const [dateRange, setDateRange] = useState("January 2025");
   const [retryCount, setRetryCount] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [totalCandles, setTotalCandles] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [currentReplayTime, setCurrentReplayTime] = useState<number | null>(null);
+  const allCandlesRef = useRef<CandlestickData<Time>[]>([]);
+  const replayIndexRef = useRef(-1);
 
   const selectedInstrument = instrumentDetails[instrument];
   const sessionDateLabel = sessionTime === null
@@ -75,6 +88,37 @@ export default function TrainingPage() {
         minute: "2-digit",
         timeZoneName: "short",
       });
+
+  const currentReplayDateLabel = currentReplayTime === null
+    ? "—"
+    : new Date(currentReplayTime * 1000).toLocaleString("en-GB", {
+        timeZone: "UTC",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZoneName: "short",
+      });
+
+  const revealCandlesAt = (requestedIndex: number) => {
+    const candles = allCandlesRef.current;
+    const series = seriesRef.current;
+    const chart = chartRef.current;
+    if (!candles.length || !series || !chart) return;
+
+    const nextIndex = Math.max(0, Math.min(requestedIndex, candles.length - 1));
+    const visibleCandles = candles.slice(0, nextIndex + 1);
+    const lastCandle = visibleCandles[visibleCandles.length - 1];
+
+    replayIndexRef.current = nextIndex;
+    series.setData(visibleCandles);
+    chart.timeScale().scrollToRealTime();
+    setCurrentIndex(nextIndex);
+    setCandleCount(visibleCandles.length);
+    setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
+    setCurrentReplayTime(Number(lastCandle.time));
+  };
 
   // Pick a random market once when a new training page is opened.
   // The state changes only on the client, so the server and first client render match.
@@ -145,8 +189,8 @@ export default function TrainingPage() {
     };
   }, []);
 
-  // Refit after React reveals the chart container. This avoids calculating
-  // the initial viewport while the loading overlay is still being displayed.
+  // Fit the chart once when the first replay data becomes visible.
+  // Do not refit after every candle: that would continuously change the zoom.
   useEffect(() => {
     if (!hasData || !chartRef.current || !chartContainerRef.current) return;
 
@@ -164,7 +208,7 @@ export default function TrainingPage() {
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [hasData, candleCount]);
+  }, [hasData]);
 
   useEffect(() => {
     if (!chartReady || !sessionReady || !seriesRef.current || !chartRef.current) return;
@@ -175,6 +219,12 @@ export default function TrainingPage() {
     setError("");
     setCandleCount(0);
     setLastPrice("—");
+    setCurrentIndex(0);
+    setTotalCandles(0);
+    setCurrentReplayTime(null);
+    setIsPlaying(false);
+    allCandlesRef.current = [];
+    replayIndexRef.current = -1;
     seriesRef.current.setData([]);
 
     async function loadHistoricalData() {
@@ -217,12 +267,24 @@ export default function TrainingPage() {
           setSessionTime(sessionTimeRef.current);
         }
 
-        const replayCandles = validCandles.filter(
-          (candle) => Number(candle.time) <= (sessionTimeRef.current as number),
-        );
-        if (replayCandles.length === 0) {
+        let initialIndex = -1;
+        for (let index = 0; index < validCandles.length; index += 1) {
+          if (Number(validCandles[index].time) <= (sessionTimeRef.current as number)) {
+            initialIndex = index;
+          } else {
+            break;
+          }
+        }
+        if (initialIndex < 0) {
           throw new Error("No candles exist before the selected replay point.");
         }
+
+        const replayCandles = validCandles.slice(0, initialIndex + 1);
+        allCandlesRef.current = validCandles;
+        replayIndexRef.current = initialIndex;
+        setCurrentIndex(initialIndex);
+        setTotalCandles(validCandles.length);
+        setCurrentReplayTime(Number(replayCandles[replayCandles.length - 1].time));
 
         const chart = chartRef.current;
         const series = seriesRef.current;
@@ -256,6 +318,21 @@ export default function TrainingPage() {
     void loadHistoricalData();
     return () => controller.abort();
   }, [chartReady, sessionReady, instrument, timeframe, selectedInstrument.decimals, retryCount]);
+
+  useEffect(() => {
+    if (!isPlaying || !hasData) return;
+
+    const timer = window.setInterval(() => {
+      const nextIndex = replayIndexRef.current + 1;
+      if (nextIndex >= allCandlesRef.current.length) {
+        setIsPlaying(false);
+        return;
+      }
+      revealCandlesAt(nextIndex);
+    }, Math.max(50, 1000 / playbackSpeed));
+
+    return () => window.clearInterval(timer);
+  }, [isPlaying, hasData, playbackSpeed]);
 
   return (
     <main className="min-h-screen bg-[#080808] text-white">
@@ -304,7 +381,7 @@ export default function TrainingPage() {
               <BarChart3 size={18} className="text-zinc-400" />
               <span className="text-xs font-semibold">Price Chart</span>
               <span className="text-[10px] text-zinc-600">{timeframe}</span>
-              <span className="rounded-md border border-white/10 px-2 py-1 text-[10px] text-zinc-400">REPLAY · {sessionDateLabel}</span>
+              <span className="rounded-md border border-white/10 px-2 py-1 text-[10px] text-zinc-400">REPLAY · {currentReplayDateLabel}</span>
             </div>
             <div className="flex items-center gap-4 text-zinc-500">
               <span className="text-xs">Last <span className="text-zinc-300">{lastPrice}</span></span>
@@ -349,6 +426,102 @@ export default function TrainingPage() {
           </div>
         </section>
 
+        <section className="mt-4 rounded-2xl border border-white/[0.08] bg-[#0c0c0c] p-4 md:p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold tracking-wide text-white">HISTORICAL REPLAY</p>
+              <p className="mt-1 text-[11px] text-zinc-500">Свечи открываются постепенно — будущая история скрыта</p>
+            </div>
+            <span className="text-xs tabular-nums text-zinc-400">
+              {totalCandles ? `${currentIndex + 1} / ${totalCandles}` : "—"}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              aria-label="Вернуться к первой свече"
+              title="К первой свече"
+              disabled={!hasData || currentIndex <= 0}
+              onClick={() => revealCandlesAt(0)}
+              className="rounded-lg border border-white/10 p-2 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+            ><SkipBack size={17} /></button>
+            <button
+              aria-label="Назад на 50 свечей"
+              title="Назад на 50 свечей"
+              disabled={!hasData || currentIndex <= 0}
+              onClick={() => revealCandlesAt(currentIndex - 50)}
+              className="rounded-lg border border-white/10 p-2 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+            ><RewindIcon /></button>
+            <button
+              aria-label="Предыдущая свеча"
+              title="Предыдущая свеча"
+              disabled={!hasData || currentIndex <= 0}
+              onClick={() => revealCandlesAt(currentIndex - 1)}
+              className="rounded-lg border border-white/10 p-2 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+            ><StepBack size={17} /></button>
+            <button
+              aria-label={isPlaying ? "Пауза" : "Воспроизвести"}
+              title={isPlaying ? "Пауза" : "Воспроизвести"}
+              disabled={!hasData || currentIndex >= totalCandles - 1}
+              onClick={() => setIsPlaying((value) => !value)}
+              className="rounded-lg bg-white px-4 py-2 text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
+            >{isPlaying ? <Pause size={17} /> : <Play size={17} />}</button>
+            <button
+              aria-label="Следующая свеча"
+              title="Следующая свеча"
+              disabled={!hasData || currentIndex >= totalCandles - 1}
+              onClick={() => revealCandlesAt(currentIndex + 1)}
+              className="rounded-lg border border-white/10 p-2 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+            ><StepForward size={17} /></button>
+            <button
+              aria-label="Вперёд на 50 свечей"
+              title="Вперёд на 50 свечей"
+              disabled={!hasData || currentIndex >= totalCandles - 1}
+              onClick={() => revealCandlesAt(currentIndex + 50)}
+              className="rounded-lg border border-white/10 p-2 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+            ><FastForwardIcon /></button>
+            <button
+              aria-label="К последней свече"
+              title="К последней свече"
+              disabled={!hasData || currentIndex >= totalCandles - 1}
+              onClick={() => { setIsPlaying(false); revealCandlesAt(totalCandles - 1); }}
+              className="rounded-lg border border-white/10 p-2 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+            ><SkipForward size={17} /></button>
+
+            <label className="ml-auto flex items-center gap-2 text-[11px] text-zinc-500">
+              Скорость
+              <select
+                value={playbackSpeed}
+                onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
+                className="rounded-lg border border-white/10 bg-[#151515] px-2 py-2 text-xs text-white outline-none"
+              >
+                <option value={1}>1x</option>
+                <option value={2}>2x</option>
+                <option value={5}>5x</option>
+                <option value={10}>10x</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-5">
+            <input
+              aria-label="Позиция в исторических данных"
+              type="range"
+              min={0}
+              max={Math.max(totalCandles - 1, 0)}
+              value={Math.min(currentIndex, Math.max(totalCandles - 1, 0))}
+              disabled={!hasData || totalCandles <= 1}
+              onChange={(event) => { setIsPlaying(false); revealCandlesAt(Number(event.target.value)); }}
+              className="w-full cursor-pointer accent-white disabled:cursor-not-allowed"
+            />
+            <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-zinc-500">
+              <span>Начало истории</span>
+              <span className="text-zinc-300">{currentReplayDateLabel}</span>
+              <span>Конец истории</span>
+            </div>
+          </div>
+        </section>
+
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {[
             { label: "Instrument", value: selectedInstrument.label },
@@ -356,6 +529,7 @@ export default function TrainingPage() {
             { label: "Data source", value: loading ? "Loading..." : hasData ? "Dukascopy CSV" : "Unavailable" },
             { label: "Historical period", value: dateRange },
             { label: "Replay start (UTC)", value: sessionTime === null ? "—" : sessionDateLabel },
+            { label: "Current replay (UTC)", value: currentReplayDateLabel },
             { label: "Candles on chart", value: loading ? "—" : String(candleCount) },
           ].map((item) => (
             <div key={item.label} className="rounded-xl border border-white/[0.08] bg-[#111111] p-5">
