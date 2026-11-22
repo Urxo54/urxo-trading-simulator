@@ -50,6 +50,9 @@ export default function TrainingPage() {
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
 
   const [instrument, setInstrument] = useState<Instrument>("eurusd");
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionTime, setSessionTime] = useState<number | null>(null);
+  const sessionTimeRef = useRef<number | null>(null);
   const [timeframe, setTimeframe] = useState<Timeframe>("H1");
   const [lastPrice, setLastPrice] = useState("—");
   const [loading, setLoading] = useState(true);
@@ -61,6 +64,26 @@ export default function TrainingPage() {
   const [retryCount, setRetryCount] = useState(0);
 
   const selectedInstrument = instrumentDetails[instrument];
+  const sessionDateLabel = sessionTime === null
+    ? "Selecting random session..."
+    : new Date(sessionTime * 1000).toLocaleString("en-GB", {
+        timeZone: "UTC",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZoneName: "short",
+      });
+
+  // Pick a random market once when a new training page is opened.
+  // The state changes only on the client, so the server and first client render match.
+  useEffect(() => {
+    const markets = Object.keys(instrumentDetails) as Instrument[];
+    const randomMarket = markets[Math.floor(Math.random() * markets.length)];
+    setInstrument(randomMarket);
+    setSessionReady(true);
+  }, []);
 
   // Create the chart once. Data loading starts only after the chart is ready.
   useEffect(() => {
@@ -144,7 +167,7 @@ export default function TrainingPage() {
   }, [hasData, candleCount]);
 
   useEffect(() => {
-    if (!chartReady || !seriesRef.current || !chartRef.current) return;
+    if (!chartReady || !sessionReady || !seriesRef.current || !chartRef.current) return;
 
     const controller = new AbortController();
     setLoading(true);
@@ -181,25 +204,44 @@ export default function TrainingPage() {
           throw new Error("The data file did not contain valid chart candles.");
         }
 
-        // Apply data, reset the time range to the exact loaded candle set,
-        // and autoscale the price axis before revealing the chart.
+        // The first H1 response determines the random historical point.
+        // Subsequent timeframe changes reuse that exact timestamp.
+        if (sessionTimeRef.current === null) {
+          if (timeframe !== "H1") {
+            throw new Error("The initial replay point could not be selected.");
+          }
+          const minIndex = Math.min(30, Math.max(0, validCandles.length - 2));
+          const maxIndex = Math.max(minIndex + 1, Math.floor(validCandles.length * 0.9));
+          const randomIndex = minIndex + Math.floor(Math.random() * (maxIndex - minIndex));
+          sessionTimeRef.current = Number(validCandles[randomIndex].time);
+          setSessionTime(sessionTimeRef.current);
+        }
+
+        const replayCandles = validCandles.filter(
+          (candle) => Number(candle.time) <= (sessionTimeRef.current as number),
+        );
+        if (replayCandles.length === 0) {
+          throw new Error("No candles exist before the selected replay point.");
+        }
+
         const chart = chartRef.current;
         const series = seriesRef.current;
         if (!chart || !series) {
           throw new Error("The chart is not ready yet.");
         }
 
-        series.setData(validCandles);
+        // Only historical candles up to the selected point reach the chart.
+        series.setData(replayCandles);
         chart.priceScale("right").applyOptions({ autoScale: true });
         chart.timeScale().setVisibleLogicalRange({
           from: -1,
-          to: validCandles.length + 1,
+          to: replayCandles.length + 1,
         });
         chart.timeScale().fitContent();
 
-        const lastCandle = validCandles[validCandles.length - 1];
+        const lastCandle = replayCandles[replayCandles.length - 1];
         setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
-        setCandleCount(validCandles.length);
+        setCandleCount(replayCandles.length);
         setDateRange(result.dateRange || "Historical data");
         setHasData(true);
       } catch (loadError) {
@@ -213,7 +255,7 @@ export default function TrainingPage() {
 
     void loadHistoricalData();
     return () => controller.abort();
-  }, [chartReady, instrument, timeframe, selectedInstrument.decimals, retryCount]);
+  }, [chartReady, sessionReady, instrument, timeframe, selectedInstrument.decimals, retryCount]);
 
   return (
     <main className="min-h-screen bg-[#080808] text-white">
@@ -270,6 +312,7 @@ export default function TrainingPage() {
               <BarChart3 size={18} className="text-zinc-400" />
               <span className="text-xs font-semibold">Price Chart</span>
               <span className="text-[10px] text-zinc-600">{timeframe}</span>
+              <span className="rounded-md border border-white/10 px-2 py-1 text-[10px] text-zinc-400">REPLAY · {sessionDateLabel}</span>
             </div>
             <div className="flex items-center gap-4 text-zinc-500">
               <span className="text-xs">Last <span className="text-zinc-300">{lastPrice}</span></span>
@@ -314,12 +357,13 @@ export default function TrainingPage() {
           </div>
         </section>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {[
             { label: "Instrument", value: selectedInstrument.label },
             { label: "Timeframe", value: timeframe },
             { label: "Data source", value: loading ? "Loading..." : hasData ? "Dukascopy CSV" : "Unavailable" },
             { label: "Historical period", value: dateRange },
+            { label: "Replay start (UTC)", value: sessionTime === null ? "—" : sessionDateLabel },
             { label: "Candles on chart", value: loading ? "—" : String(candleCount) },
           ].map((item) => (
             <div key={item.label} className="rounded-xl border border-white/[0.08] bg-[#111111] p-5">
