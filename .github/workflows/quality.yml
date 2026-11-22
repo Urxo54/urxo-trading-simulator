@@ -2,7 +2,7 @@ name: Project quality checks
 
 on:
   push:
-    branches: [master]
+    branches: [master, "fix/**"]
   pull_request:
     branches: [master]
 
@@ -12,16 +12,45 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
       - name: Install dependencies
         run: npm ci
+
       - name: Run ESLint
+        id: lint
+        continue-on-error: true
         run: npm run lint
+
       - name: Check TypeScript
+        id: types
+        continue-on-error: true
         run: npx tsc --noEmit
+
+      - name: Run automated tests
+        id: tests
+        continue-on-error: true
+        run: npm test
+
       - name: Build application
+        id: build
+        continue-on-error: true
         run: npm run build
+
+      - name: Fail if any quality check failed
+        if: always()
+        env:
+          LINT_OUTCOME: ${{ steps.lint.outcome }}
+          TYPES_OUTCOME: ${{ steps.types.outcome }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+        run: |
+          if [ "$LINT_OUTCOME" != "success" ] || [ "$TYPES_OUTCOME" != "success" ] || [ "$TESTS_OUTCOME" != "success" ] || [ "$BUILD_OUTCOME" != "success" ]; then
+            echo "At least one quality check failed."
+            exit 1
+          fi
