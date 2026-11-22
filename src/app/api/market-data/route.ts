@@ -1,0 +1,100 @@
+import { readdir } from "node:fs/promises";
+import path from "node:path";
+import { historicalMarkets, inspectHistoricalCsv } from "@/lib/market-data";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const directory = path.join(process.cwd(), "data", "historical");
+
+  let entries: string[];
+  try {
+    entries = await readdir(directory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return Response.json({
+        period: "2024–2025",
+        markets: historicalMarkets.map((market) => ({
+          id: market.id,
+          label: market.label,
+          status: "missing",
+          count: 0,
+          sizeBytes: 0,
+          modifiedAt: null,
+        })),
+      });
+    }
+    console.error("Market data directory could not be read:", error);
+    return Response.json({ error: "Could not inspect the local market data folder." }, { status: 500 });
+  }
+
+  const markets = await Promise.all(
+    historicalMarkets.map(async (market) => {
+      const finalPath = path.join(directory, market.fileName);
+
+      if (entries.includes(market.fileName)) {
+        try {
+          const inspection = await inspectHistoricalCsv(finalPath);
+          return {
+            id: market.id,
+            label: market.label,
+            status: inspection.count > 0 ? "ready" : "invalid",
+            fileName: market.fileName,
+            ...inspection,
+          };
+        } catch (error) {
+          console.error(`Could not inspect ${market.fileName}:`, error);
+          return {
+            id: market.id,
+            label: market.label,
+            status: "error",
+            count: 0,
+            sizeBytes: 0,
+            modifiedAt: null,
+          };
+        }
+      }
+
+      const partialNames = entries.filter(
+        (name) => name.startsWith(`${market.fileName}.`) && name.endsWith(".part"),
+      );
+
+      if (partialNames.length > 0) {
+        const partialName = partialNames[partialNames.length - 1];
+        try {
+          const inspection = await inspectHistoricalCsv(path.join(directory, partialName));
+          return {
+            id: market.id,
+            label: market.label,
+            status: "partial",
+            fileName: partialName,
+            ...inspection,
+          };
+        } catch (error) {
+          console.error(`Could not inspect partial ${partialName}:`, error);
+          return {
+            id: market.id,
+            label: market.label,
+            status: "partial",
+            fileName: partialName,
+            count: 0,
+            sizeBytes: 0,
+            modifiedAt: null,
+          };
+        }
+      }
+
+      return {
+        id: market.id,
+        label: market.label,
+        status: "missing",
+        count: 0,
+        sizeBytes: 0,
+        modifiedAt: null,
+      };
+    }),
+  );
+
+  return Response.json({ period: "2024–2025", markets });
+}
