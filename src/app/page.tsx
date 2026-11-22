@@ -103,6 +103,7 @@ export default function Home() {
     setImportStatus("Preparing monthly historical download...");
 
     let receivedDoneEvent = false;
+    const downloadController = new AbortController();
 
     const handleEvent = (rawEvent: string) => {
       const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data: "));
@@ -142,7 +143,10 @@ export default function Home() {
     };
 
     try {
-      const response = await fetch("/api/import-history", { method: "POST" });
+      const response = await fetch("/api/import-history", {
+        method: "POST",
+        signal: downloadController.signal,
+      });
       if (!response.ok || !response.body) {
         const result = await response.json().catch(() => null);
         throw new Error(result?.error ?? "Could not start download.");
@@ -168,6 +172,7 @@ export default function Home() {
         throw new Error("The connection closed before the download was verified. Check the dataset status and try again.");
       }
     } catch (error) {
+      downloadController.abort();
       setImportFailed(true);
       setImportStatus(error instanceof Error ? error.message : "Historical data download failed.");
     } finally {
