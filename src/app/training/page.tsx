@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   CandlestickSeries,
   ColorType,
@@ -103,7 +104,7 @@ export default function TrainingPage() {
         timeZoneName: "short",
       });
 
-  const revealCandlesAt = (requestedIndex: number) => {
+  const revealCandlesAt = useCallback((requestedIndex: number) => {
     const candles = allCandlesRef.current;
     const series = seriesRef.current;
     const chart = chartRef.current;
@@ -120,15 +121,18 @@ export default function TrainingPage() {
     setCandleCount(visibleCandles.length);
     setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
     setCurrentReplayTime(Number(lastCandle.time));
-  };
+  }, [selectedInstrument.decimals]);
 
   // Pick a random market once when a new training page is opened.
   // The state changes only on the client, so the server and first client render match.
   useEffect(() => {
-    const markets = Object.keys(instrumentDetails) as Instrument[];
-    const randomMarket = markets[Math.floor(Math.random() * markets.length)];
-    setInstrument(randomMarket);
-    setSessionReady(true);
+    const frame = window.requestAnimationFrame(() => {
+      const markets = Object.keys(instrumentDetails) as Instrument[];
+      const randomMarket = markets[Math.floor(Math.random() * markets.length)];
+      setInstrument(randomMarket);
+      setSessionReady(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   // Create the chart once. Data loading starts only after the chart is ready.
@@ -334,15 +338,15 @@ export default function TrainingPage() {
     }, Math.max(50, 1000 / playbackSpeed));
 
     return () => window.clearInterval(timer);
-  }, [isPlaying, hasData, playbackSpeed]);
+  }, [isPlaying, hasData, playbackSpeed, revealCandlesAt]);
 
   return (
     <main className="min-h-screen bg-[#080808] text-white">
       <header className="flex h-[70px] items-center justify-between border-b border-white/[0.08] px-5 md:px-8">
         <div className="flex items-center gap-4">
-          <a href="/" aria-label="Back to dashboard" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-zinc-400 transition hover:bg-white/10 hover:text-white">
+          <Link href="/" aria-label="Back to dashboard" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-zinc-400 transition hover:bg-white/10 hover:text-white">
             <ArrowLeft size={18} />
-          </a>
+          </Link>
           <div>
             <h1 className="text-sm font-bold tracking-[0.16em]">URXO</h1>
             <p className="text-[9px] tracking-[0.2em] text-zinc-500">TRADING TERMINAL</p>

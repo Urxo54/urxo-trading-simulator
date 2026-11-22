@@ -2,8 +2,8 @@ import { spawn } from "node:child_process";
 import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { historicalMarkets, inspectHistoricalCsv } from "@/lib/market-data";
+import { buildDukascopyArgs, isInspectionWithinRange } from "@/lib/import-history";
 
-export const runtime = "nodejs";
 export const maxDuration = 600;
 
 const months = Array.from({ length: 24 }, (_, index) => {
@@ -111,15 +111,7 @@ export async function POST() {
 
             try {
               inspection = await inspectHistoricalCsv(monthlyPath, { force: true });
-              if (
-                inspection.count === 0 ||
-                inspection.firstTimestamp === null ||
-                inspection.lastTimestamp === null ||
-                inspection.firstTimestamp < month.start ||
-                inspection.lastTimestamp >= month.end ||
-                inspection.firstTimestamp > month.start + 7 * 24 * 60 * 60 * 1000 ||
-                inspection.lastTimestamp < month.end - 7 * 24 * 60 * 60 * 1000
-              ) {
+              if (!isInspectionWithinRange(inspection, month, 7)) {
                 inspection = null;
               }
             } catch {
@@ -140,34 +132,12 @@ export async function POST() {
                 message: `Downloading ${market.label} · ${month.key}...`,
               });
 
-              const args = [
-                "--yes",
-                "dukascopy-node",
-                "-i",
-                market.id,
-                "-from",
-                month.from,
-                "-to",
-                month.to,
-                "-t",
-                "m1",
-                "-f",
-                "csv",
-                "-dir",
-                stagingDirectory,
-                "-fn",
-                fileStem,
-                "--retries",
-                "5",
-                "--retry-pause",
-                "2000",
-                "--batch-size",
-                "10",
-                "--batch-pause",
-                "1000",
-                "--retry-on-empty",
-                "--cache",
-              ];
+              const args = buildDukascopyArgs({
+                instrument: market.id,
+                range: month,
+                directory: stagingDirectory,
+                fileName: fileStem,
+              });
 
               await runDownloader(
                 args,
@@ -185,15 +155,7 @@ export async function POST() {
 
               if (cancelled) throw new Error("Download was cancelled.");
               inspection = await inspectHistoricalCsv(monthlyPath, { force: true });
-              if (
-                inspection.count === 0 ||
-                inspection.firstTimestamp === null ||
-                inspection.lastTimestamp === null ||
-                inspection.firstTimestamp < month.start ||
-                inspection.lastTimestamp >= month.end ||
-                inspection.firstTimestamp > month.start + 7 * 24 * 60 * 60 * 1000 ||
-                inspection.lastTimestamp < month.end - 7 * 24 * 60 * 60 * 1000
-              ) {
+              if (!isInspectionWithinRange(inspection, month, 7)) {
                 throw new Error(
                   `${market.label} · ${month.key}: downloaded file failed validation. It will not be added to the final dataset.`,
                 );
