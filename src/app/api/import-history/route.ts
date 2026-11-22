@@ -3,7 +3,6 @@ import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/prom
 import path from "node:path";
 import { historicalMarkets, inspectHistoricalCsv } from "@/lib/market-data";
 
-export const runtime = "nodejs";
 export const maxDuration = 600;
 
 const months = Array.from({ length: 24 }, (_, index) => {
