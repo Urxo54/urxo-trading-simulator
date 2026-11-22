@@ -113,8 +113,6 @@ export async function POST() {
               inspection = await inspectHistoricalCsv(monthlyPath, { force: true });
               if (!isInspectionWithinRange(inspection, month, 7)) {
                 inspection = null;
-              } {
-                inspection = null;
               }
             } catch {
               inspection = null;
@@ -158,10 +156,6 @@ export async function POST() {
               if (cancelled) throw new Error("Download was cancelled.");
               inspection = await inspectHistoricalCsv(monthlyPath, { force: true });
               if (!isInspectionWithinRange(inspection, month, 7)) {
-                throw new Error(
-                  `${market.label} · ${month.key}: downloaded file failed validation. It will not be added to the final dataset.`,
-                );
-              } {
                 throw new Error(
                   `${market.label} · ${month.key}: downloaded file failed validation. It will not be added to the final dataset.`,
                 );
