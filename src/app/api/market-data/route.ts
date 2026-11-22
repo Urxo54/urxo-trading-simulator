@@ -78,6 +78,22 @@ export async function GET() {
         }
       }
 
+      const buildingName = `${market.fileName}.building`;
+      if (entries.includes(buildingName)) {
+        try {
+          const inspection = await inspectHistoricalCsv(path.join(directory, buildingName));
+          return {
+            id: market.id,
+            label: market.label,
+            status: "partial",
+            fileName: buildingName,
+            ...inspection,
+          };
+        } catch (error) {
+          console.error(`Could not inspect building dataset ${buildingName}:`, error);
+        }
+      }
+
       const partialNames = entries
         .filter((name) => name.startsWith(`${market.fileName}.`) && name.endsWith(".part"))
         .sort();
