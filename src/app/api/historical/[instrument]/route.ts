@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 type Instrument = "eurusd" | "xauusd" | "usatechidxusd";
-type Timeframe = "D1" | "H4" | "H1";
+type Timeframe = "MN1" | "W1" | "D1" | "H4" | "H1";
 
 type Candle = {
   time: number;
@@ -19,13 +19,26 @@ const instruments: Record<Instrument, string> = {
 };
 
 const intervals: Record<Timeframe, number> = {
+  MN1: 30 * 24 * 60 * 60,
+  W1: 7 * 24 * 60 * 60,
   D1: 24 * 60 * 60,
   H4: 4 * 60 * 60,
   H1: 60 * 60,
 };
 
+function bucketStart(timestamp: number, timeframe: Timeframe): number {
+  const date = new Date(timestamp * 1000);
+  if (timeframe === "MN1") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1) / 1000;
+  if (timeframe === "W1") {
+    const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+    date.setUTCDate(date.getUTCDate() - daysSinceMonday);
+    date.setUTCHours(0, 0, 0, 0);
+    return date.getTime() / 1000;
+  }
+  return Math.floor(timestamp / intervals[timeframe]) * intervals[timeframe];
+}
+
 function aggregateCandles(rows: string[], timeframe: Timeframe): Candle[] {
-  const interval = intervals[timeframe];
   const candles = new Map<number, Candle>();
 
   for (const row of rows) {
@@ -49,7 +62,7 @@ function aggregateCandles(rows: string[], timeframe: Timeframe): Candle[] {
     }
 
     const timestamp = Math.floor(timestampMs / 1000);
-    const bucketTime = Math.floor(timestamp / interval) * interval;
+    const bucketTime = bucketStart(timestamp, timeframe);
     const existing = candles.get(bucketTime);
 
     if (!existing) {
