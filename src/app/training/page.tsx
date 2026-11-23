@@ -368,9 +368,21 @@ export default function TrainingPage() {
         };
         state.marks.forEach((mark) => add(mark));
         if (state.pendingPoint && state.previewPoint) {
-          add(state.drawingTool === "line"
-            ? { id: -1, type: "line", a: state.pendingPoint, b: state.previewPoint }
-            : { id: -1, type: state.drawingTool === "long" || state.drawingTool === "short" ? state.drawingTool : "rectangle", a: state.pendingPoint, b: state.previewPoint }, true);
+          if (state.drawingTool === "line") {
+            add({ id: -1, type: "line", a: state.pendingPoint, b: state.previewPoint }, true);
+          } else if (state.drawingTool === "long" || state.drawingTool === "short") {
+            const isLong = state.drawingTool === "long";
+            const distance = Math.max(Math.abs(state.pendingPoint.price - state.previewPoint.price), Math.abs(state.pendingPoint.price) * 0.00001);
+            add({
+              id: -1,
+              type: state.drawingTool,
+              a: state.pendingPoint,
+              b: { time: state.previewPoint.time, price: state.pendingPoint.price + (isLong ? -distance : distance) },
+              tpPrice: state.pendingPoint.price + (isLong ? distance : -distance),
+            }, true);
+          } else {
+            add({ id: -1, type: "rectangle", a: state.pendingPoint, b: state.previewPoint }, true);
+          }
         }
         const selected = state.marks.find((mark) => mark.id === state.selectedMarkId);
         if (selected) {
