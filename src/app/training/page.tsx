@@ -45,7 +45,7 @@ type ChartPoint = { time: number; price: number };
 type ChartMark =
   | { id: number; type: "text"; a: ChartPoint; text?: string }
   | { id: number; type: "line" | "rectangle"; a: ChartPoint; b: ChartPoint }
-  | { id: number; type: "long" | "short"; a: ChartPoint; b: ChartPoint; tpPrice: number };
+  | { id: number; type: "long" | "short"; a: ChartPoint; b: ChartPoint; tpPrice: number; orderType?: "market" | "pending"; createdIndex?: number; triggerIndex?: number };
 
 const instrumentDetails: Record<
   Instrument,
@@ -226,6 +226,22 @@ export default function TrainingPage() {
     setCandleCount(visibleCandles.length);
     setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
     setCurrentReplayTime(Number(lastCandle.time));
+    setMarks((current) => current.map((mark) => {
+      if ((mark.type !== "long" && mark.type !== "short") || !mark.orderType) return mark;
+      if (mark.orderType === "market" && mark.triggerIndex === undefined) return mark;
+      if (mark.triggerIndex !== undefined && nextIndex < mark.triggerIndex) {
+        return { ...mark, orderType: "pending", triggerIndex: undefined };
+      }
+      if (mark.triggerIndex !== undefined) return mark;
+      const first = Math.max((mark.createdIndex ?? nextIndex) + 1, 0);
+      for (let i = first; i <= nextIndex; i += 1) {
+        const candle = candles[i];
+        if (candle && candle.low <= mark.a.price && candle.high >= mark.a.price) {
+          return { ...mark, orderType: "market", triggerIndex: i };
+        }
+      }
+      return mark;
+    }));
   }, [selectedInstrument.decimals]);
 
   // Pick a random market once when a new training page is opened.
@@ -327,7 +343,7 @@ export default function TrainingPage() {
                   context.strokeStyle = isLong ? "#ffffff" : "#000000";
                   context.beginPath(); context.moveTo(left, a.y); context.lineTo(right, a.y); context.stroke();
                   context.beginPath(); context.setLineDash([5, 4]); context.moveTo(left, targetY); context.lineTo(right, targetY); context.moveTo(left, stopY); context.lineTo(right, stopY); context.stroke(); context.setLineDash([]);
-                  context.font = "11px Arial"; context.fillStyle = "#ffffff"; context.fillText(isLong ? "LONG" : "SHORT", left + 5, profitTop + 13);
+                  context.font = "11px Arial"; context.fillStyle = "#ffffff"; context.fillText("orderType" in mark && mark.orderType === "pending" ? (isLong ? "PENDING BUY" : "PENDING SELL") : "orderType" in mark && mark.orderType === "market" ? (isLong ? "LONG · OPEN" : "SHORT · OPEN") : (isLong ? "LONG" : "SHORT"), left + 5, profitTop + 13);
                 }
               }
             }
@@ -393,7 +409,7 @@ export default function TrainingPage() {
             const isPosition = selected.type === "long" || selected.type === "short";
             const tp = "tpPrice" in selected ? series.priceToCoordinate(selected.tpPrice) : null;
             item.handles = {
-              a: isPosition ? undefined : a,
+              a,
               b: b ?? undefined,
               tp: tp !== null && b ? { x: b.x, y: tp } : undefined,
             };
@@ -770,6 +786,32 @@ export default function TrainingPage() {
   };
   const handleChartPointerUp = () => { if(dragRef.current){dragRef.current=null;chartRef.current?.applyOptions({handleScroll:true,handleScale:true});chartRef.current?.clearCrosshairPosition();} };
 
+  const createPosition = (direction: "long" | "short", orderType: "market" | "pending") => {
+    const candle = allCandlesRef.current[currentIndex];
+    if (!candle) return;
+    const entry = Number(candle.close);
+    const range = chartRef.current?.priceScale("right").getVisibleRange();
+    const visibleHeight = range ? Math.abs(range.to - range.from) : Math.abs(entry) * 0.02;
+    const risk = Math.max(visibleHeight * 0.06, Math.abs(entry) * 0.0001);
+    const isLong = direction === "long";
+    const timeframeSeconds = timeframe === "MN1" ? 2592000 : timeframe === "W1" ? 604800 : timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600;
+    const id = nextMarkId.current++;
+    const mark: ChartMark = {
+      id,
+      type: direction,
+      a: { time: Number(candle.time), price: entry },
+      b: { time: Number(candle.time) + timeframeSeconds * 20, price: entry + (isLong ? -risk : risk) },
+      tpPrice: entry + (isLong ? risk : -risk),
+      orderType,
+      createdIndex: currentIndex,
+    };
+    setMarks((current) => [...current, mark]);
+    setSelectedMarkId(id);
+    setDrawingTool("cursor");
+    setPendingPoint(null);
+    setPreviewPoint(null);
+  };
+
   const toolButton = (tool: DrawingTool, label: string, Icon: typeof MousePointer2) => (
     <button key={tool} type="button" title={label} aria-label={label} onClick={() => {setDrawingTool(tool);setPendingPoint(null);setPreviewPoint(null);dragRef.current=null;}}
       className={`rounded-lg border p-2 transition ${drawingTool===tool?"border-white bg-white text-black":"border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"}`}><Icon size={16}/></button>
@@ -865,6 +907,11 @@ export default function TrainingPage() {
               {toolButton("short", "Сделка шорт", TrendingDown)}
               {toolButton("text", "Текстовая заметка", Type)}
               {toolButton("delete", "Удалить пометку", Trash2)}
+              <span className="mx-1 w-px bg-white/10" />
+              <button type="button" title="Buy Market" onClick={() => createPosition("long", "market")} disabled={!hasData} className="rounded-lg border border-white/20 px-2 py-2 text-[10px] font-bold text-white hover:bg-white/15 disabled:opacity-30">BUY MKT</button>
+              <button type="button" title="Sell Market" onClick={() => createPosition("short", "market")} disabled={!hasData} className="rounded-lg border border-white/20 px-2 py-2 text-[10px] font-bold text-white hover:bg-white/15 disabled:opacity-30">SELL MKT</button>
+              <button type="button" title="Buy Pending" onClick={() => createPosition("long", "pending")} disabled={!hasData} className="rounded-lg border border-white/10 px-2 py-2 text-[10px] font-bold text-zinc-300 hover:bg-white/10 disabled:opacity-30">BUY LIMIT</button>
+              <button type="button" title="Sell Pending" onClick={() => createPosition("short", "pending")} disabled={!hasData} className="rounded-lg border border-white/10 px-2 py-2 text-[10px] font-bold text-zinc-300 hover:bg-white/10 disabled:opacity-30">SELL LIMIT</button>
               <span className="mx-1 w-px bg-white/10" />
               <button type="button" title="Отменить последнее действие" aria-label="Отменить последнее действие"
                 onClick={() => { setMarks((current) => current.slice(0, -1)); setPendingPoint(null); setPreviewPoint(null); setSelectedMarkId(null); }}
