@@ -249,22 +249,22 @@ export default function TrainingPage() {
       width: Math.max(container.clientWidth, 320),
       height: 520,
       layout: {
-        background: { type: ColorType.Solid, color: "#080808" },
-        textColor: "#a1a1aa",
+        background: { type: ColorType.Solid, color: "#ffffff" },
+        textColor: "#52525b",
         fontFamily: "Arial, sans-serif",
       },
       grid: {
-        vertLines: { color: "rgba(255,255,255,0.045)" },
-        horzLines: { color: "rgba(255,255,255,0.045)" },
+        vertLines: { color: "rgba(0,0,0,0.07)" },
+        horzLines: { color: "rgba(0,0,0,0.07)" },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: "rgba(255,255,255,0.3)", width: 1, style: 2 },
-        horzLine: { color: "rgba(255,255,255,0.3)", width: 1, style: 2 },
+        vertLine: { color: "rgba(0,0,0,0.35)", width: 1, style: 2 },
+        horzLine: { color: "rgba(0,0,0,0.35)", width: 1, style: 2 },
       },
-      rightPriceScale: { borderColor: "rgba(255,255,255,0.1)" },
+      rightPriceScale: { borderColor: "rgba(0,0,0,0.14)" },
       timeScale: {
-        borderColor: "rgba(255,255,255,0.1)",
+        borderColor: "rgba(0,0,0,0.14)",
         timeVisible: true,
         secondsVisible: false,
       },
@@ -273,12 +273,12 @@ export default function TrainingPage() {
     });
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#ffffff",
-      downColor: "#666666",
-      borderUpColor: "#ffffff",
-      borderDownColor: "#666666",
-      wickUpColor: "#ffffff",
-      wickDownColor: "#777777",
+      upColor: "#171717",
+      downColor: "#a1a1aa",
+      borderUpColor: "#171717",
+      borderDownColor: "#71717a",
+      wickUpColor: "#171717",
+      wickDownColor: "#71717a",
     });
 
     chartRef.current = chart;
