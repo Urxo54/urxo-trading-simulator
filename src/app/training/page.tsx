@@ -30,7 +30,8 @@ import {
   StepBack,
   StepForward,
   MousePointer2,
-  Minus as HorizontalLineIcon,
+  TrendingUp,
+  TrendingDown,
   Square,
   Type,
   Undo2,
@@ -39,11 +40,11 @@ import {
 
 type Timeframe = "MN1" | "W1" | "D1" | "H4" | "H1";
 type Instrument = "eurusd" | "xauusd" | "usatechidxusd";
-type DrawingTool = "cursor" | "horizontal" | "line" | "rectangle" | "text" | "delete";
+type DrawingTool = "cursor" | "line" | "rectangle" | "long" | "short" | "text" | "delete";
 type ChartPoint = { time: number; price: number };
 type ChartMark =
-  | { id: number; type: "horizontal" | "text"; a: ChartPoint; text?: string }
-  | { id: number; type: "line" | "rectangle"; a: ChartPoint; b: ChartPoint };
+  | { id: number; type: "text"; a: ChartPoint; text?: string }
+  | { id: number; type: "line" | "rectangle" | "long" | "short"; a: ChartPoint; b: ChartPoint };
 
 const instrumentDetails: Record<
   Instrument,
@@ -302,18 +303,32 @@ export default function TrainingPage() {
             const { mark, a, b, active, ghost } = item;
             context.save();
             context.lineWidth = active ? 2.5 : 1.5;
-            context.strokeStyle = active ? "#ffffff" : mark.type === "horizontal" ? "#facc15" : mark.type === "rectangle" ? "#60a5fa" : "#f472b6";
+            context.strokeStyle = active ? "#ffffff" : mark.type === "rectangle" ? "#60a5fa" : mark.type === "long" ? "#22c55e" : mark.type === "short" ? "#ef4444" : "#f472b6";
             if (ghost) context.setLineDash([5, 4]);
-            if (mark.type === "horizontal") {
-              context.setLineDash([6, 4]); context.beginPath(); context.moveTo(0, a.y); context.lineTo(mediaSize.width, a.y); context.stroke(); context.setLineDash([]);
-              context.fillStyle = active ? "#ffffff" : "#facc15"; context.font = "11px Arial"; context.fillText(mark.a.price.toFixed(drawingStateRef.current.decimals), 8, a.y - 6);
-            } else if (mark.type === "text") {
+            if (mark.type === "text") {
               context.font = "13px Arial"; context.lineWidth = 3; context.strokeStyle = "#080808"; context.strokeText(mark.text ?? "", a.x + 7, a.y - 7);
               context.fillStyle = "#ffffff"; context.fillText(mark.text ?? "", a.x + 7, a.y - 7);
             } else if (b) {
               context.beginPath();
               if (mark.type === "line") { context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.stroke(); }
-              else { const left = Math.min(a.x, b.x), top = Math.min(a.y, b.y), width = Math.abs(b.x - a.x), height = Math.abs(b.y - a.y); context.fillStyle = "rgba(96,165,250,0.12)"; context.fillRect(left, top, width, height); context.strokeRect(left, top, width, height); }
+              else if (mark.type === "rectangle") { const left = Math.min(a.x, b.x), top = Math.min(a.y, b.y), width = Math.abs(b.x - a.x), height = Math.abs(b.y - a.y); context.fillStyle = "rgba(96,165,250,0.12)"; context.fillRect(left, top, width, height); context.strokeRect(left, top, width, height); }
+              else {
+                const isLong = mark.type === "long";
+                const targetPrice = mark.a.price + (isLong ? 1 : -1) * Math.abs(mark.a.price - mark.b.price) * 2;
+                const targetY = series.priceToCoordinate(targetPrice);
+                if (targetY !== null) {
+                  const left = Math.min(a.x, b.x), right = Math.max(a.x, b.x), width = Math.max(1, right - left);
+                  const stopY = series.priceToCoordinate(mark.b.price) ?? b.y;
+                  const profitTop = Math.min(a.y, targetY), profitBottom = Math.max(a.y, targetY);
+                  const riskTop = Math.min(a.y, stopY), riskBottom = Math.max(a.y, stopY);
+                  context.fillStyle = "rgba(34,197,94,0.18)"; context.fillRect(left, profitTop, width, Math.max(1, profitBottom - profitTop));
+                  context.fillStyle = "rgba(239,68,68,0.18)"; context.fillRect(left, riskTop, width, Math.max(1, riskBottom - riskTop));
+                  context.strokeStyle = active ? "#ffffff" : isLong ? "#22c55e" : "#ef4444";
+                  context.beginPath(); context.moveTo(left, a.y); context.lineTo(right, a.y); context.stroke();
+                  context.beginPath(); context.setLineDash([5, 4]); context.moveTo(left, targetY); context.lineTo(right, targetY); context.moveTo(left, stopY); context.lineTo(right, stopY); context.stroke(); context.setLineDash([]);
+                  context.font = "11px Arial"; context.fillStyle = "#ffffff"; context.fillText(isLong ? "LONG · TP 2R" : "SHORT · TP 2R", left + 5, profitTop + 13);
+                }
+              }
             }
             context.restore();
             if (item.handles) {
@@ -353,7 +368,7 @@ export default function TrainingPage() {
         if (state.pendingPoint && state.previewPoint) {
           add(state.drawingTool === "line"
             ? { id: -1, type: "line", a: state.pendingPoint, b: state.previewPoint }
-            : { id: -1, type: "rectangle", a: state.pendingPoint, b: state.previewPoint }, true);
+            : { id: -1, type: state.drawingTool === "long" || state.drawingTool === "short" ? state.drawingTool : "rectangle", a: state.pendingPoint, b: state.previewPoint }, true);
         }
         const selected = state.marks.find((mark) => mark.id === state.selectedMarkId);
         if (selected) {
@@ -633,10 +648,7 @@ export default function TrainingPage() {
           if (ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
           else if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
         }
-      } else if (selected?.type === "horizontal") {
-        const yPos = seriesRef.current?.priceToCoordinate(selected.a.price);
-        if (yPos !== null && yPos !== undefined && Math.abs(y-yPos) <= 10) mode = "resize-a";
-      }
+
       let hit:ChartMark|null=null,dist=14;
       if (selected && mode !== "move") hit = selected;
       else marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hit=m;}});
@@ -646,11 +658,10 @@ export default function TrainingPage() {
       return;
     }
     if(drawingTool==="delete"){let hitId:number|null=null,dist=18;marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hitId=m.id;}});if(hitId!==null)setMarks(v=>v.filter(m=>m.id!==hitId));setSelectedMarkId(null);return;}
-    if(drawingTool==="horizontal"){setMarks(v=>[...v,{id:nextMarkId.current++,type:"horizontal",a:point}]);return;}
     if(drawingTool==="text"){const value=window.prompt("Текст заметки:");if(value?.trim()){const id=nextMarkId.current++;setMarks(v=>[...v,{id,type:"text",a:point,text:value.trim()}]);setSelectedMarkId(id);}setDrawingTool("cursor");return;}
     if(!pendingPoint){setPendingPoint(point);setPreviewPoint(point);return;}
     if(drawingTool === "line" && event.shiftKey){point=snapLinePoint(pendingPoint,point);}
-    setMarks(v=>[...v,{id:nextMarkId.current++,type:drawingTool,a:pendingPoint,b:point}]);setPendingPoint(null);setPreviewPoint(null);setDrawingTool("cursor");
+    setMarks(v=>[...v,{id:nextMarkId.current++,type:drawingTool,a:pendingPoint,b:point} as ChartMark]);setPendingPoint(null);setPreviewPoint(null);setDrawingTool("cursor");
   };
 
   const handleChartPointerMove = (event: import("react").PointerEvent<HTMLDivElement>) => {
@@ -774,9 +785,10 @@ export default function TrainingPage() {
           <div className="relative min-h-[520px] bg-[#080808]">
             <div className="absolute left-3 top-3 z-20 flex flex-wrap gap-1 rounded-xl border border-white/10 bg-[#111111]/95 p-1.5 shadow-xl">
               {toolButton("cursor", "Курсор", MousePointer2)}
-              {toolButton("horizontal", "Горизонтальная линия", HorizontalLineIcon)}
               {toolButton("line", "Линия (от точки до точки)", Minus)}
               {toolButton("rectangle", "Прямоугольник", Square)}
+              {toolButton("long", "Сделка лонг", TrendingUp)}
+              {toolButton("short", "Сделка шорт", TrendingDown)}
               {toolButton("text", "Текстовая заметка", Type)}
               {toolButton("delete", "Удалить пометку", Trash2)}
               <span className="mx-1 w-px bg-white/10" />
