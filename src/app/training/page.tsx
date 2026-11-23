@@ -45,7 +45,7 @@ type ChartPoint = { time: number; price: number };
 type ChartMark =
   | { id: number; type: "text"; a: ChartPoint; text?: string }
   | { id: number; type: "line" | "rectangle"; a: ChartPoint; b: ChartPoint }
-  | { id: number; type: "long" | "short"; a: ChartPoint; b: ChartPoint; tpPrice: number; orderType?: "market" | "pending"; createdIndex?: number; triggerIndex?: number };
+  | { id: number; type: "long" | "short"; a: ChartPoint; b: ChartPoint; tpPrice: number };
 
 const instrumentDetails: Record<
   Instrument,
@@ -136,32 +136,8 @@ export default function TrainingPage() {
     if (!candles.length || !series || !chart) return;
 
     const nextIndex = Math.max(0, Math.min(requestedIndex, candles.length - 1));
-    const previousIndex = replayIndexRef.current;
     const visibleCandles = candles.slice(0, nextIndex + 1);
     const lastCandle = visibleCandles[visibleCandles.length - 1];
-
-    // Pending orders become open positions when a newly revealed candle
-    // reaches their entry. Rewinding before that candle restores the order.
-    setMarks((current) => current.map((mark) => {
-      if (!(mark.type === "long" || mark.type === "short") || mark.orderType === undefined || mark.createdIndex === undefined) return mark;
-      // Market entries are already open; only pending orders are trigger-checked.
-      if (mark.orderType !== "pending" && mark.triggerIndex === undefined) return mark;
-      let triggerIndex: number | undefined;
-      if (nextIndex > mark.createdIndex) {
-        const from = Math.max(mark.createdIndex + 1, 0);
-        const to = Math.min(nextIndex, candles.length - 1);
-        for (let index = from; index <= to; index += 1) {
-          const candle = candles[index];
-          if (candle.low <= mark.a.price && candle.high >= mark.a.price) {
-            triggerIndex = index;
-            break;
-          }
-        }
-      }
-      const orderType = triggerIndex === undefined ? "pending" : "market";
-      if (mark.orderType === orderType && mark.triggerIndex === triggerIndex) return mark;
-      return { ...mark, orderType, triggerIndex };
-    }));
 
     replayIndexRef.current = nextIndex;
     series.setData(visibleCandles);
@@ -351,13 +327,7 @@ export default function TrainingPage() {
                   context.strokeStyle = isLong ? "#ffffff" : "#000000";
                   context.beginPath(); context.moveTo(left, a.y); context.lineTo(right, a.y); context.stroke();
                   context.beginPath(); context.setLineDash([5, 4]); context.moveTo(left, targetY); context.lineTo(right, targetY); context.moveTo(left, stopY); context.lineTo(right, stopY); context.stroke(); context.setLineDash([]);
-                  context.font = "11px Arial"; context.fillStyle = "#ffffff";
-                  const positionLabel = mark.orderType === "pending"
-                    ? (isLong ? "PENDING BUY" : "PENDING SELL")
-                    : mark.orderType === "market"
-                      ? (isLong ? "LONG · OPEN" : "SHORT · OPEN")
-                      : (isLong ? "LONG" : "SHORT");
-                  context.fillText(positionLabel, left + 5, profitTop + 13);
+                  context.font = "11px Arial"; context.fillStyle = "#ffffff"; context.fillText(isLong ? "LONG" : "SHORT", left + 5, profitTop + 13);
                 }
               }
             }
@@ -420,9 +390,10 @@ export default function TrainingPage() {
           const b = "b" in selected ? toXY(selected.b) : null;
           const item = next.find((entry) => entry.mark.id === selected.id);
           if (item && a) {
+            const isPosition = selected.type === "long" || selected.type === "short";
             const tp = "tpPrice" in selected ? series.priceToCoordinate(selected.tpPrice) : null;
             item.handles = {
-              a,
+              a: isPosition ? undefined : a,
               b: b ?? undefined,
               tp: tp !== null && b ? { x: b.x, y: tp } : undefined,
             };
@@ -593,43 +564,6 @@ export default function TrainingPage() {
 
   const timeframeSeconds = timeframe === "MN1" ? 2592000 : timeframe === "W1" ? 604800 : timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600;
 
-  const createPosition = (direction: "long" | "short", orderType: "market" | "pending") => {
-    const chart = chartRef.current;
-    const candles = allCandlesRef.current;
-    const candle = candles[currentIndex];
-    if (!chart || !candle) return;
-
-    const entryPrice = Number(candle.close);
-    const visiblePriceRange = chart.priceScale("right").getVisibleRange();
-    const visibleHeight = visiblePriceRange
-      ? Math.abs(visiblePriceRange.to - visiblePriceRange.from)
-      : 0;
-    const risk = Math.max(
-      visibleHeight * 0.06,
-      Math.abs(entryPrice) * 0.0001,
-    );
-    const isLong = direction === "long";
-    const id = nextMarkId.current++;
-    const entryTime = Number(candle.time);
-    const mark: ChartMark = {
-      id,
-      type: direction,
-      orderType,
-      createdIndex: currentIndex,
-      a: { time: entryTime, price: entryPrice },
-      b: {
-        time: entryTime + timeframeSeconds * 20,
-        price: entryPrice + (isLong ? -risk : risk),
-      },
-      tpPrice: entryPrice + (isLong ? risk : -risk),
-    };
-    setMarks((current) => [...current, mark]);
-    setSelectedMarkId(id);
-    setDrawingTool("cursor");
-    setPendingPoint(null);
-    setPreviewPoint(null);
-  };
-
   // Convert between chart coordinates and market time. Logical coordinates let
   // drawings extend into the empty space after the last revealed candle.
   const pointFromCoordinates = (x: number, y: number): ChartPoint | null => {
@@ -760,8 +694,7 @@ export default function TrainingPage() {
           const bx = coordinateForTime(selected.b.time), by = series.priceToCoordinate(selected.b.price);
           if ((selected.type === "long" || selected.type === "short") && "tpPrice" in selected) {
             const tpY = series.priceToCoordinate(selected.tpPrice);
-            if (ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
-            else if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
+            if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
             else if (bx !== null && tpY !== null && Math.hypot(x-bx,y-tpY) <= 11) mode = "resize-tp";
           } else {
             if (ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
@@ -810,7 +743,7 @@ export default function TrainingPage() {
       const movedA=pointFromCoordinates(originalA+dx,originalAY+dy);
       if(!movedA)return;
       let updated:ChartMark;
-      if(mode==="resize-a") updated={...original,a:point,...(original.type === "long" || original.type === "short") && original.orderType === "pending" ? {createdIndex:currentIndex,triggerIndex:undefined} : {}} as ChartMark;
+      if(mode==="resize-a") updated={...original,a:point} as ChartMark;
       else if(mode==="resize-tp" && "tpPrice" in original) updated={...original,tpPrice:point.price};
       else if(mode==="resize-b" && "b" in original) updated = "tpPrice" in original ? { ...original, b: { ...original.b, price: point.price } } : { ...original, b: point };
       else if("b" in original){
@@ -824,7 +757,7 @@ export default function TrainingPage() {
           if (originalTpY === null) return;
           const movedTp = pointFromCoordinates(originalB+dx, originalTpY+dy);
           if (!movedTp) return;
-          updated={...original,a:movedA,b:movedB,tpPrice:movedTp.price,...(original.orderType === "pending" ? {createdIndex:currentIndex,triggerIndex:undefined} : {})};
+          updated={...original,a:movedA,b:movedB,tpPrice:movedTp.price};
         } else {
           updated={...original,a:movedA,b:movedB};
         }
@@ -941,13 +874,6 @@ export default function TrainingPage() {
                 onClick={() => { setMarks([]); setPendingPoint(null); setPreviewPoint(null); setSelectedMarkId(null); }}
                 disabled={!marks.length && !pendingPoint}
                 className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10 disabled:opacity-30"><Trash2 size={16} /></button>
-            </div>
-            <div className="absolute right-3 top-3 z-20 flex flex-wrap justify-end gap-1.5 rounded-xl border border-white/10 bg-[#111111]/95 p-1.5 shadow-xl">
-              <button type="button" onClick={() => createPosition("long", "market")} disabled={!hasData} title="Открыть покупку по последней цене" className="rounded-lg border border-white/20 bg-white px-2.5 py-2 text-[10px] font-bold text-black transition hover:bg-zinc-200 disabled:opacity-40">BUY MARKET</button>
-              <button type="button" onClick={() => createPosition("short", "market")} disabled={!hasData} title="Открыть продажу по последней цене" className="rounded-lg border border-white/20 px-2.5 py-2 text-[10px] font-bold text-white transition hover:bg-white/10 disabled:opacity-40">SELL MARKET</button>
-              <span className="mx-0.5 w-px bg-white/10" />
-              <button type="button" onClick={() => createPosition("long", "pending")} disabled={!hasData} title="Создать отложенный ордер на покупку" className="rounded-lg border border-white/15 px-2.5 py-2 text-[10px] font-semibold text-zinc-300 transition hover:bg-white/10 disabled:opacity-40">BUY PENDING</button>
-              <button type="button" onClick={() => createPosition("short", "pending")} disabled={!hasData} title="Создать отложенный ордер на продажу" className="rounded-lg border border-white/15 px-2.5 py-2 text-[10px] font-semibold text-zinc-300 transition hover:bg-white/10 disabled:opacity-40">SELL PENDING</button>
             </div>
             {drawingTool !== "cursor" && <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-lg border border-white/10 bg-[#111111]/90 px-3 py-2 text-[11px] text-zinc-300">{pendingPoint ? "Двигай мышь для размера · второй клик — зафиксировать (Shift — ровная линия)" : "Первый клик — начальная точка"}</div>}
             <div ref={chartContainerRef} onPointerDownCapture={handleChartPointerDown} onPointerMove={handleChartPointerMove} onPointerUp={handleChartPointerUp} onPointerCancel={handleChartPointerUp} className={`absolute inset-0 w-full transition-opacity ${hasData ? "opacity-100" : "pointer-events-none opacity-0"}`} />
