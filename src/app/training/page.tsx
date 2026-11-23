@@ -95,7 +95,7 @@ export default function TrainingPage() {
   const [pendingPoint, setPendingPoint] = useState<ChartPoint | null>(null);
   const [previewPoint, setPreviewPoint] = useState<ChartPoint | null>(null);
   const [selectedMarkId, setSelectedMarkId] = useState<number | null>(null);
-  const dragRef = useRef<{ id: number; mode: "move" | "resize-a" | "resize-b" | "resize-tp"; startX: number; startY: number; original: ChartMark } | null>(null);
+  const dragRef = useRef<{ id: number; mode: "move" | "move-vertical" | "resize-a" | "resize-b" | "resize-tp"; startX: number; startY: number; original: ChartMark } | null>(null);
   const [, setOverlayVersion] = useState(0);
   const nextMarkId = useRef(1);
   const drawingPrimitiveRequestRef = useRef<(() => void) | null>(null);
@@ -700,6 +700,7 @@ export default function TrainingPage() {
             const tpY = series.priceToCoordinate(selected.tpPrice);
             if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
             else if (bx !== null && tpY !== null && Math.hypot(x-bx,y-tpY) <= 11) mode = "resize-tp";
+            else if (selected.orderType === "pending" && ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
           } else {
             if (ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
             else if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
@@ -712,7 +713,8 @@ export default function TrainingPage() {
       else marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hit=m;}});
       if (hit && (hit.type === "long" || hit.type === "short") && hit.orderType === "market" && mode === "move") hit = null;
       setSelectedMarkId(hit?.id??null);
-      dragRef.current=hit?{id:hit.id,mode:hit===selected?mode:"move",startX:x,startY:y,original:hit}:null;
+      const dragMode = hit === selected ? mode : hit && (hit.type === "long" || hit.type === "short") && hit.orderType === "pending" ? "move-vertical" : "move";
+      dragRef.current=hit?{id:hit.id,mode:dragMode,startX:x,startY:y,original:hit}:null;
       if(hit){chartRef.current?.applyOptions({handleScroll:false,handleScale:false});event.stopPropagation();event.preventDefault();}
       return;
     }
@@ -739,9 +741,16 @@ export default function TrainingPage() {
       const movedA=pointFromCoordinates(originalA+dx,originalAY+dy);
       if(!movedA)return;
       let updated:ChartMark;
-      if(mode==="resize-a") updated={...original,a:point} as ChartMark;
+      if(mode==="resize-a" && "tpPrice" in original && original.orderType === "pending") updated={...original,a:{...original.a,price:point.price}};
+      else if(mode==="resize-a") updated={...original,a:point} as ChartMark;
       else if(mode==="resize-tp" && "tpPrice" in original) updated={...original,tpPrice:point.price};
       else if(mode==="resize-b" && "b" in original) updated = "tpPrice" in original ? { ...original, b: { ...original.b, price: point.price } } : { ...original, b: point };
+      else if(mode==="move-vertical" && "b" in original && "tpPrice" in original) {
+        const startPrice = seriesRef.current?.coordinateToPrice(startY);
+        if (startPrice === null || startPrice === undefined) return;
+        const priceDelta = point.price - startPrice;
+        updated = {...original,a:{...original.a,price:original.a.price+priceDelta},b:{...original.b,price:original.b.price+priceDelta},tpPrice:original.tpPrice+priceDelta};
+      }
       else if("b" in original){
         const originalB=coordinateForTime(original.b.time);
         const originalBY=seriesRef.current?.priceToCoordinate(original.b.price) ?? null;
