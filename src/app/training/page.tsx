@@ -95,7 +95,7 @@ export default function TrainingPage() {
   const [pendingPoint, setPendingPoint] = useState<ChartPoint | null>(null);
   const [previewPoint, setPreviewPoint] = useState<ChartPoint | null>(null);
   const [selectedMarkId, setSelectedMarkId] = useState<number | null>(null);
-  const dragRef = useRef<{ id: number; mode: "move" | "resize-a" | "resize-b"; start: ChartPoint; original: ChartMark } | null>(null);
+  const dragRef = useRef<{ id: number; mode: "move" | "resize-a" | "resize-b"; startX: number; startY: number; original: ChartMark } | null>(null);
   const [, setOverlayVersion] = useState(0);
   const nextMarkId = useRef(1);
   const drawingPrimitiveRequestRef = useRef<(() => void) | null>(null);
@@ -642,13 +642,13 @@ export default function TrainingPage() {
       if (selected && mode !== "move") hit = selected;
       else marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hit=m;}});
       setSelectedMarkId(hit?.id??null);
-      dragRef.current=hit?{id:hit.id,mode:hit===selected?mode:"move",start:point,original:hit}:null;
+      dragRef.current=hit?{id:hit.id,mode:hit===selected?mode:"move",startX:x,startY:y,original:hit}:null;
       if(hit){chartRef.current?.applyOptions({handleScroll:false,handleScale:false});event.stopPropagation();event.preventDefault();}
       return;
     }
     if(drawingTool==="delete"){let hitId:number|null=null,dist=18;marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hitId=m.id;}});if(hitId!==null)setMarks(v=>v.filter(m=>m.id!==hitId));setSelectedMarkId(null);return;}
     if(drawingTool==="horizontal"){setMarks(v=>[...v,{id:nextMarkId.current++,type:"horizontal",a:point}]);return;}
-    if(drawingTool==="text"){const value=window.prompt("Текст заметки:");if(value?.trim())setMarks(v=>[...v,{id:nextMarkId.current++,type:"text",a:point,text:value.trim()}]);return;}
+    if(drawingTool==="text"){const value=window.prompt("Текст заметки:");if(value?.trim()){const id=nextMarkId.current++;setMarks(v=>[...v,{id,type:"text",a:point,text:value.trim()}]);setSelectedMarkId(id);}setDrawingTool("cursor");return;}
     if(!pendingPoint){setPendingPoint(point);setPreviewPoint(point);return;}
     if(drawingTool === "line" && event.shiftKey){point=snapLinePoint(pendingPoint,point);}
     setMarks(v=>[...v,{id:nextMarkId.current++,type:drawingTool,a:pendingPoint,b:point}]);setPendingPoint(null);setPreviewPoint(null);setDrawingTool("cursor");
@@ -657,13 +657,31 @@ export default function TrainingPage() {
   const handleChartPointerMove = (event: import("react").PointerEvent<HTMLDivElement>) => {
     setOverlayVersion((value) => value + 1);
     let point=pointFromPointer(event);if(!point)return;
-    if(dragRef.current){chartRef.current?.setCrosshairPosition(point.price,point.time as Time,seriesRef.current!);const {id,mode,start,original}=dragRef.current,dt=point.time-start.time,dp=point.price-start.price;
-      setMarks(v=>v.map(m=>{if(m.id!==id)return m;
-        if(mode==="resize-a")return {...original,a:point} as ChartMark;
-        if(mode==="resize-b" && "b" in original)return {...original,b:point} as ChartMark;
-        const a={time:original.a.time+dt,price:original.a.price+dp};
-        return "b" in original?{...original,a,b:{time:original.b.time+dt,price:original.b.price+dp}}:{...original,a};
-      }));return;}
+    if(dragRef.current){
+      const bounds=event.currentTarget.getBoundingClientRect();
+      const x=event.clientX-bounds.left,y=event.clientY-bounds.top;
+      const {id,mode,startX,startY,original}=dragRef.current;
+      const dx=x-startX,dy=y-startY;
+      const originalA=coordinateForTime(original.a.time);
+      const originalAY=seriesRef.current?.priceToCoordinate(original.a.price) ?? null;
+      if(originalA===null||originalAY===null)return;
+      const movedA=pointFromCoordinates(originalA+dx,originalAY+dy);
+      if(!movedA)return;
+      let updated:ChartMark;
+      if(mode==="resize-a") updated={...original,a:point} as ChartMark;
+      else if(mode==="resize-b" && "b" in original) updated={...original,b:point} as ChartMark;
+      else if("b" in original){
+        const originalB=coordinateForTime(original.b.time);
+        const originalBY=seriesRef.current?.priceToCoordinate(original.b.price) ?? null;
+        if(originalB===null||originalBY===null)return;
+        const movedB=pointFromCoordinates(originalB+dx,originalBY+dy);
+        if(!movedB)return;
+        updated={...original,a:movedA,b:movedB};
+      } else updated={...original,a:movedA};
+      chartRef.current?.setCrosshairPosition(point.price,point.time as Time,seriesRef.current!);
+      setMarks(v=>v.map(m=>m.id===id?updated:m));
+      return;
+    }
     if(pendingPoint){if(drawingTool === "line" && event.shiftKey){point=snapLinePoint(pendingPoint,point);}setPreviewPoint(point);}
   };
   const handleChartPointerUp = () => { if(dragRef.current){dragRef.current=null;chartRef.current?.applyOptions({handleScroll:true,handleScale:true});chartRef.current?.clearCrosshairPosition();} };
