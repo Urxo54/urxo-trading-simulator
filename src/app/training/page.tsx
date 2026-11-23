@@ -538,17 +538,16 @@ export default function TrainingPage() {
     if (logical === null || price === null || !Number.isFinite(price)) return null;
 
     const candles = allCandlesRef.current;
-    const lastVisible = candles[currentIndex];
-    if (!lastVisible) return null;
+    if (!candles.length) return null;
+    const left = Math.max(0, Math.min(candles.length - 1, Math.floor(logical)));
+    const right = Math.min(candles.length - 1, left + 1);
+    const fraction = logical - left;
     let time: number;
-    if (logical >= currentIndex) {
-      time = Number(lastVisible.time) + (logical - currentIndex) * timeframeSeconds;
-    } else {
-      const left = Math.max(0, Math.floor(logical));
-      const right = Math.min(candles.length - 1, left + 1);
-      const fraction = logical - left;
+    if (right > left) {
       time = Number(candles[left].time) +
         (Number(candles[right].time) - Number(candles[left].time)) * fraction;
+    } else {
+      time = Number(candles[left].time) + (logical - left) * timeframeSeconds;
     }
     return { time, price };
   };
@@ -564,25 +563,26 @@ export default function TrainingPage() {
     const candles = allCandlesRef.current;
     if (!candles.length) return null;
     let logical: number;
-    const lastVisible = candles[currentIndex];
-    if (!lastVisible) return null;
-    if (time >= Number(lastVisible.time)) {
-      logical = currentIndex + (time - Number(lastVisible.time)) / timeframeSeconds;
+    if (!candles.length) return null;
+    let low = 0;
+    let high = candles.length - 1;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (Number(candles[mid].time) < time) low = mid + 1;
+      else high = mid;
+    }
+    const right = low;
+    if (right === 0) {
+      const span = candles.length > 1 ? Number(candles[1].time) - Number(candles[0].time) : timeframeSeconds;
+      logical = (time - Number(candles[0].time)) / span;
     } else {
-      let low = 0;
-      let high = Math.min(currentIndex, candles.length - 1);
-      while (low < high) {
-        const mid = Math.floor((low + high) / 2);
-        if (Number(candles[mid].time) < time) low = mid + 1;
-        else high = mid;
-      }
-      const right = low;
-      if (right === 0) logical = 0;
-      else {
-        const left = right - 1;
-        const span = Number(candles[right].time) - Number(candles[left].time);
-        const fraction = span ? (time - Number(candles[left].time)) / span : 0;
-        logical = left + fraction;
+      const left = right - 1;
+      const span = Number(candles[right].time) - Number(candles[left].time);
+      const fraction = span ? (time - Number(candles[left].time)) / span : 0;
+      logical = left + fraction;
+      if (time > Number(candles[candles.length - 1].time)) {
+        const last = candles.length - 1;
+        logical = last + (time - Number(candles[last].time)) / timeframeSeconds;
       }
     }
     return chart.timeScale().logicalToCoordinate(logical);
