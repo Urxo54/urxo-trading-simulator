@@ -44,7 +44,8 @@ type DrawingTool = "cursor" | "line" | "rectangle" | "long" | "short" | "text" |
 type ChartPoint = { time: number; price: number };
 type ChartMark =
   | { id: number; type: "text"; a: ChartPoint; text?: string }
-  | { id: number; type: "line" | "rectangle" | "long" | "short"; a: ChartPoint; b: ChartPoint };
+  | { id: number; type: "line" | "rectangle"; a: ChartPoint; b: ChartPoint }
+  | { id: number; type: "long" | "short"; a: ChartPoint; b: ChartPoint; tpPrice: number };
 
 const instrumentDetails: Record<
   Instrument,
@@ -96,7 +97,7 @@ export default function TrainingPage() {
   const [pendingPoint, setPendingPoint] = useState<ChartPoint | null>(null);
   const [previewPoint, setPreviewPoint] = useState<ChartPoint | null>(null);
   const [selectedMarkId, setSelectedMarkId] = useState<number | null>(null);
-  const dragRef = useRef<{ id: number; mode: "move" | "resize-a" | "resize-b"; startX: number; startY: number; original: ChartMark } | null>(null);
+  const dragRef = useRef<{ id: number; mode: "move" | "resize-a" | "resize-b" | "resize-tp"; startX: number; startY: number; original: ChartMark } | null>(null);
   const [, setOverlayVersion] = useState(0);
   const nextMarkId = useRef(1);
   const drawingPrimitiveRequestRef = useRef<(() => void) | null>(null);
@@ -290,7 +291,7 @@ export default function TrainingPage() {
       else { let low = 0, high = Math.min(state.currentIndex, candles.length - 1); while (low < high) { const mid = Math.floor((low + high) / 2); if (Number(candles[mid].time) < time) low = mid + 1; else high = mid; } const right = low; if (right === 0) logical = 0; else { const left = right - 1, span = Number(candles[right].time) - Number(candles[left].time); logical = left + (span ? (time - Number(candles[left].time)) / span : 0); } }
       return chart.timeScale().logicalToCoordinate(logical);
     };
-    type RenderMark = { mark: ChartMark; a: { x: number; y: number }; b?: { x: number; y: number }; handles?: { a: { x: number; y: number }; b?: { x: number; y: number } }; active: boolean; ghost: boolean };
+    type RenderMark = { mark: ChartMark; a: { x: number; y: number }; b?: { x: number; y: number }; handles?: { a: { x: number; y: number }; b?: { x: number; y: number }; tp?: { x: number; y: number } }; active: boolean; ghost: boolean };
     let renderedMarks: RenderMark[] = [];
     const drawingRenderer = {
       draw: (target: { useMediaCoordinateSpace: (callback: (scope: { context: CanvasRenderingContext2D; mediaSize: { width: number; height: number } }) => void) => void }) => {
@@ -314,7 +315,7 @@ export default function TrainingPage() {
               else if (mark.type === "rectangle") { const left = Math.min(a.x, b.x), top = Math.min(a.y, b.y), width = Math.abs(b.x - a.x), height = Math.abs(b.y - a.y); context.fillStyle = "rgba(96,165,250,0.12)"; context.fillRect(left, top, width, height); context.strokeRect(left, top, width, height); }
               else {
                 const isLong = mark.type === "long";
-                const targetPrice = mark.a.price + (isLong ? 1 : -1) * Math.abs(mark.a.price - mark.b.price) * 2;
+                const targetPrice = mark.tpPrice;
                 const targetY = series.priceToCoordinate(targetPrice);
                 if (targetY !== null) {
                   const left = Math.min(a.x, b.x), right = Math.max(a.x, b.x), width = Math.max(1, right - left);
@@ -326,7 +327,7 @@ export default function TrainingPage() {
                   context.strokeStyle = active ? "#ffffff" : isLong ? "#22c55e" : "#ef4444";
                   context.beginPath(); context.moveTo(left, a.y); context.lineTo(right, a.y); context.stroke();
                   context.beginPath(); context.setLineDash([5, 4]); context.moveTo(left, targetY); context.lineTo(right, targetY); context.moveTo(left, stopY); context.lineTo(right, stopY); context.stroke(); context.setLineDash([]);
-                  context.font = "11px Arial"; context.fillStyle = "#ffffff"; context.fillText(isLong ? "LONG · TP 2R" : "SHORT · TP 2R", left + 5, profitTop + 13);
+                  context.font = "11px Arial"; context.fillStyle = "#ffffff"; context.fillText(isLong ? "LONG" : "SHORT", left + 5, profitTop + 13);
                 }
               }
             }
@@ -340,6 +341,7 @@ export default function TrainingPage() {
               };
               drawHandle(item.handles.a);
               if (item.handles.b) drawHandle(item.handles.b);
+              if (item.handles.tp) drawHandle(item.handles.tp);
             }
           }
           context.restore();
@@ -375,7 +377,10 @@ export default function TrainingPage() {
           const a = toXY(selected.a);
           const b = "b" in selected ? toXY(selected.b) : null;
           const item = next.find((entry) => entry.mark.id === selected.id);
-          if (item && a) item.handles = { a: a, b: b ?? undefined };
+          if (item && a) {
+            const tp = "tpPrice" in selected ? series.priceToCoordinate(selected.tpPrice) : null;
+            item.handles = { a, b: b ?? undefined, tp: tp !== null && b ? { x: b.x, y: tp } : undefined };
+          }
         }
         renderedMarks = next;
       },
@@ -628,6 +633,10 @@ export default function TrainingPage() {
     if (mark.type === "text") return Math.hypot(x-a.x,y-a.y);
     const b = xy(mark.b); if (b.x === null || b.y === null) return Infinity;
     if (mark.type === "line") { const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy,t=l?Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/l)):0; return Math.hypot(x-a.x-t*dx,y-a.y-t*dy); }
+    if (mark.type === "long" || mark.type === "short") {
+      const tpY = series.priceToCoordinate(mark.tpPrice);
+      if (tpY !== null && Math.abs(x - b.x) <= 10 && Math.abs(y - tpY) <= 10) return 0;
+    }
     const left=Math.min(a.x,b.x),right=Math.max(a.x,b.x),top=Math.min(a.y,b.y),bottom=Math.max(a.y,b.y);
     return x>=left&&x<=right&&y>=top&&y<=bottom ? 0 : Math.hypot(x-Math.max(left,Math.min(right,x)),y-Math.max(top,Math.min(bottom,y)));
   };
@@ -638,14 +647,18 @@ export default function TrainingPage() {
     const bounds=event.currentTarget.getBoundingClientRect(),x=event.clientX-bounds.left,y=event.clientY-bounds.top;
     if(drawingTool==="cursor"){
       const selected = marks.find(m => m.id === selectedMarkId);
-      let mode: "move" | "resize-a" | "resize-b" = "move";
+      let mode: "move" | "resize-a" | "resize-b" | "resize-tp" = "move";
       if (selected && "b" in selected) {
         const series = seriesRef.current;
         if (series) {
           const ax = coordinateForTime(selected.a.time), ay = series.priceToCoordinate(selected.a.price);
           const bx = coordinateForTime(selected.b.time), by = series.priceToCoordinate(selected.b.price);
           if (ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
-          else if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
+          else if ((selected.type === "long" || selected.type === "short") && "tpPrice" in selected) {
+            const tpY = series.priceToCoordinate(selected.tpPrice);
+            if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
+            else if (bx !== null && tpY !== null && Math.hypot(x-bx,y-tpY) <= 11) mode = "resize-tp";
+          } else if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
         }
       }
 
@@ -661,7 +674,18 @@ export default function TrainingPage() {
     if(drawingTool==="text"){const value=window.prompt("Текст заметки:");if(value?.trim()){const id=nextMarkId.current++;setMarks(v=>[...v,{id,type:"text",a:point,text:value.trim()}]);setSelectedMarkId(id);}setDrawingTool("cursor");return;}
     if(!pendingPoint){setPendingPoint(point);setPreviewPoint(point);return;}
     if(drawingTool === "line" && event.shiftKey){point=snapLinePoint(pendingPoint,point);}
-    setMarks(v=>[...v,{id:nextMarkId.current++,type:drawingTool,a:pendingPoint,b:point} as ChartMark]);setPendingPoint(null);setPreviewPoint(null);setDrawingTool("cursor");
+    const id = nextMarkId.current++;
+    if (drawingTool === "long" || drawingTool === "short") {
+      const isLong = drawingTool === "long";
+      const distance = Math.abs(pendingPoint.price - point.price);
+      const risk = Math.max(distance, Math.abs(pendingPoint.price) * 0.00001);
+      const stopPrice = pendingPoint.price + (isLong ? -risk : risk);
+      const targetPrice = pendingPoint.price + (isLong ? risk : -risk);
+      setMarks(v => [...v, { id, type: drawingTool, a: pendingPoint, b: { time: point.time, price: stopPrice }, tpPrice: targetPrice }]);
+    } else {
+      setMarks(v=>[...v,{id,type:drawingTool,a:pendingPoint,b:point} as ChartMark]);
+    }
+    setSelectedMarkId(id);setPendingPoint(null);setPreviewPoint(null);setDrawingTool("cursor");
   };
 
   const handleChartPointerMove = (event: import("react").PointerEvent<HTMLDivElement>) => {
@@ -679,7 +703,8 @@ export default function TrainingPage() {
       if(!movedA)return;
       let updated:ChartMark;
       if(mode==="resize-a") updated={...original,a:point} as ChartMark;
-      else if(mode==="resize-b" && "b" in original) updated={...original,b:point} as ChartMark;
+      else if(mode==="resize-tp" && "tpPrice" in original) updated={...original,tpPrice:point.price};
+      else if(mode==="resize-b" && "b" in original) updated = "tpPrice" in original ? { ...original, b: { ...original.b, price: point.price } } : { ...original, b: point };
       else if("b" in original){
         const originalB=coordinateForTime(original.b.time);
         const originalBY=seriesRef.current?.priceToCoordinate(original.b.price) ?? null;
