@@ -322,8 +322,8 @@ export default function TrainingPage() {
                   const stopY = series.priceToCoordinate(mark.b.price) ?? b.y;
                   const profitTop = Math.min(a.y, targetY), profitBottom = Math.max(a.y, targetY);
                   const riskTop = Math.min(a.y, stopY), riskBottom = Math.max(a.y, stopY);
-                  context.fillStyle = "rgba(34,197,94,0.18)"; context.fillRect(left, profitTop, width, Math.max(1, profitBottom - profitTop));
-                  context.fillStyle = "rgba(239,68,68,0.18)"; context.fillRect(left, riskTop, width, Math.max(1, riskBottom - riskTop));
+                  context.fillStyle = "rgba(255,255,255,0.10)"; context.fillRect(left, profitTop, width, Math.max(1, profitBottom - profitTop));
+                  context.fillStyle = "rgba(212,212,216,0.09)"; context.fillRect(left, riskTop, width, Math.max(1, riskBottom - riskTop));
                   context.strokeStyle = active ? "#ffffff" : isLong ? "#22c55e" : "#ef4444";
                   context.beginPath(); context.moveTo(left, a.y); context.lineTo(right, a.y); context.stroke();
                   context.beginPath(); context.setLineDash([5, 4]); context.moveTo(left, targetY); context.lineTo(right, targetY); context.moveTo(left, stopY); context.lineTo(right, stopY); context.stroke(); context.setLineDash([]);
