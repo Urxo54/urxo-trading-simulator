@@ -289,7 +289,7 @@ export default function TrainingPage() {
       else { let low = 0, high = Math.min(state.currentIndex, candles.length - 1); while (low < high) { const mid = Math.floor((low + high) / 2); if (Number(candles[mid].time) < time) low = mid + 1; else high = mid; } const right = low; if (right === 0) logical = 0; else { const left = right - 1, span = Number(candles[right].time) - Number(candles[left].time); logical = left + (span ? (time - Number(candles[left].time)) / span : 0); } }
       return chart.timeScale().logicalToCoordinate(logical);
     };
-    type RenderMark = { mark: ChartMark; a: { x: number; y: number }; b?: { x: number; y: number }; active: boolean; ghost: boolean };
+    type RenderMark = { mark: ChartMark; a: { x: number; y: number }; b?: { x: number; y: number }; handles?: { a: { x: number; y: number }; b?: { x: number; y: number } }; active: boolean; ghost: boolean };
     let renderedMarks: RenderMark[] = [];
     const drawingRenderer = {
       draw: (target: { useMediaCoordinateSpace: (callback: (scope: { context: CanvasRenderingContext2D; mediaSize: { width: number; height: number } }) => void) => void }) => {
@@ -316,6 +316,16 @@ export default function TrainingPage() {
               else { const left = Math.min(a.x, b.x), top = Math.min(a.y, b.y), width = Math.abs(b.x - a.x), height = Math.abs(b.y - a.y); context.fillStyle = "rgba(96,165,250,0.12)"; context.fillRect(left, top, width, height); context.strokeRect(left, top, width, height); }
             }
             context.restore();
+            if (item.handles) {
+              const drawHandle = (point: { x: number; y: number }) => {
+                context.beginPath();
+                context.arc(point.x < 0 ? mediaSize.width - 28 : point.x, point.y, 5, 0, Math.PI * 2);
+                context.fillStyle = "#080808"; context.fill();
+                context.lineWidth = 2; context.strokeStyle = "#ffffff"; context.stroke();
+              };
+              drawHandle(item.handles.a);
+              if (item.handles.b) drawHandle(item.handles.b);
+            }
           }
           context.restore();
         });
@@ -348,16 +358,9 @@ export default function TrainingPage() {
         const selected = state.marks.find((mark) => mark.id === state.selectedMarkId);
         if (selected) {
           const a = toXY(selected.a);
-          if (a) {
-            const handleA: ChartMark = selected.type === "horizontal"
-              ? { id: -2, type: "horizontal", a: selected.a }
-              : { id: -2, type: "text", a: selected.a, text: "" };
-            next.push({ mark: handleA, a: selected.type === "horizontal" ? { x: -1000, y: a.y } : a, active: true, ghost: false });
-          }
-          if ("b" in selected) {
-            const b = toXY(selected.b);
-            if (b) next.push({ mark: { id: -3, type: "text", a: selected.b, text: "" }, a: b, active: true, ghost: false });
-          }
+          const b = "b" in selected ? toXY(selected.b) : null;
+          const item = next.find((entry) => entry.mark.id === selected.id);
+          if (item && a) item.handles = { a: selected.type === "horizontal" ? { x: -1, y: a.y } : a, b: b ?? undefined };
         }
         renderedMarks = next;
       },
