@@ -375,7 +375,7 @@ export default function TrainingPage() {
           const a = toXY(selected.a);
           const b = "b" in selected ? toXY(selected.b) : null;
           const item = next.find((entry) => entry.mark.id === selected.id);
-          if (item && a) item.handles = { a: selected.type === "horizontal" ? { x: -1, y: a.y } : a, b: b ?? undefined };
+          if (item && a) item.handles = { a: a, b: b ?? undefined };
         }
         renderedMarks = next;
       },
@@ -625,7 +625,6 @@ export default function TrainingPage() {
     if (!chart || !series) return Infinity;
     const xy = (p: ChartPoint) => ({ x: coordinateForTime(p.time), y: series.priceToCoordinate(p.price) });
     const a = xy(mark.a); if (a.x === null || a.y === null) return Infinity;
-    if (mark.type === "horizontal") return Math.abs(y-a.y);
     if (mark.type === "text") return Math.hypot(x-a.x,y-a.y);
     const b = xy(mark.b); if (b.x === null || b.y === null) return Infinity;
     if (mark.type === "line") { const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy,t=l?Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/l)):0; return Math.hypot(x-a.x-t*dx,y-a.y-t*dy); }
