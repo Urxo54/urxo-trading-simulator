@@ -291,7 +291,7 @@ export default function TrainingPage() {
       else { let low = 0, high = Math.min(state.currentIndex, candles.length - 1); while (low < high) { const mid = Math.floor((low + high) / 2); if (Number(candles[mid].time) < time) low = mid + 1; else high = mid; } const right = low; if (right === 0) logical = 0; else { const left = right - 1, span = Number(candles[right].time) - Number(candles[left].time); logical = left + (span ? (time - Number(candles[left].time)) / span : 0); } }
       return chart.timeScale().logicalToCoordinate(logical);
     };
-    type RenderMark = { mark: ChartMark; a: { x: number; y: number }; b?: { x: number; y: number }; handles?: { a: { x: number; y: number }; b?: { x: number; y: number }; tp?: { x: number; y: number } }; active: boolean; ghost: boolean };
+    type RenderMark = { mark: ChartMark; a: { x: number; y: number }; b?: { x: number; y: number }; handles?: { a?: { x: number; y: number }; b?: { x: number; y: number }; tp?: { x: number; y: number } }; active: boolean; ghost: boolean };
     let renderedMarks: RenderMark[] = [];
     const drawingRenderer = {
       draw: (target: { useMediaCoordinateSpace: (callback: (scope: { context: CanvasRenderingContext2D; mediaSize: { width: number; height: number } }) => void) => void }) => {
@@ -339,7 +339,7 @@ export default function TrainingPage() {
                 context.fillStyle = "#080808"; context.fill();
                 context.lineWidth = 2; context.strokeStyle = "#ffffff"; context.stroke();
               };
-              drawHandle(item.handles.a);
+              if (item.handles.a) drawHandle(item.handles.a);
               if (item.handles.b) drawHandle(item.handles.b);
               if (item.handles.tp) drawHandle(item.handles.tp);
             }
