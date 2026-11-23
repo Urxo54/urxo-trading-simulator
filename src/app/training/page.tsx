@@ -289,30 +289,80 @@ export default function TrainingPage() {
       else { let low = 0, high = Math.min(state.currentIndex, candles.length - 1); while (low < high) { const mid = Math.floor((low + high) / 2); if (Number(candles[mid].time) < time) low = mid + 1; else high = mid; } const right = low; if (right === 0) logical = 0; else { const left = right - 1, span = Number(candles[right].time) - Number(candles[left].time); logical = left + (span ? (time - Number(candles[left].time)) / span : 0); } }
       return chart.timeScale().logicalToCoordinate(logical);
     };
+    type RenderMark = { mark: ChartMark; a: { x: number; y: number }; b?: { x: number; y: number }; active: boolean; ghost: boolean };
+    let renderedMarks: RenderMark[] = [];
     const drawingRenderer = {
-      draw: (target: { useMediaCoordinateSpace: (callback: (scope: { context: CanvasRenderingContext2D }) => void) => void }) => {
-        target.useMediaCoordinateSpace(({ context }) => {
-          const state = drawingStateRef.current;
-          const xy = (p: ChartPoint) => ({ x: getDrawingX(p.time), y: series.priceToCoordinate(p.price) });
-          const draw = (mark: ChartMark, ghost = false) => {
-            const a = xy(mark.a); if (a.x === null || a.y === null) return;
-            const active = mark.id === state.selectedMarkId;
-            context.save(); context.lineWidth = active ? 2.5 : 1.5;
+      draw: (target: { useMediaCoordinateSpace: (callback: (scope: { context: CanvasRenderingContext2D; mediaSize: { width: number; height: number } }) => void) => void }) => {
+        target.useMediaCoordinateSpace(({ context, mediaSize }) => {
+          context.save();
+          context.beginPath();
+          context.rect(0, 0, mediaSize.width, mediaSize.height);
+          context.clip();
+          for (const item of renderedMarks) {
+            const { mark, a, b, active, ghost } = item;
+            context.save();
+            context.lineWidth = active ? 2.5 : 1.5;
             context.strokeStyle = active ? "#ffffff" : mark.type === "horizontal" ? "#facc15" : mark.type === "rectangle" ? "#60a5fa" : "#f472b6";
-            if (ghost) context.setLineDash([5,4]);
-            if (mark.type === "horizontal") { context.setLineDash([6,4]); context.beginPath(); context.moveTo(0,a.y); context.lineTo(context.canvas.clientWidth,a.y); context.stroke(); context.setLineDash([]); context.fillStyle=active?"#ffffff":"#facc15"; context.font="11px Arial"; context.fillText(mark.a.price.toFixed(state.decimals),8,a.y-6); }
-            else if (mark.type === "text") { context.font="13px Arial"; context.lineWidth=3; context.strokeStyle="#080808"; context.strokeText(mark.text??"",a.x+7,a.y-7); context.fillStyle="#ffffff"; context.fillText(mark.text??"",a.x+7,a.y-7); }
-            else if ("b" in mark) { const p=xy(mark.b); if(p.x===null||p.y===null){context.restore();return;} context.beginPath(); if(mark.type==="line"){context.moveTo(a.x,a.y);context.lineTo(p.x,p.y);context.stroke();} else {const left=Math.min(a.x,p.x),top=Math.min(a.y,p.y),w=Math.abs(p.x-a.x),h=Math.abs(p.y-a.y);context.fillStyle="rgba(96,165,250,0.12)";context.fillRect(left,top,w,h);context.strokeRect(left,top,w,h);} }
+            if (ghost) context.setLineDash([5, 4]);
+            if (mark.type === "horizontal") {
+              context.setLineDash([6, 4]); context.beginPath(); context.moveTo(0, a.y); context.lineTo(mediaSize.width, a.y); context.stroke(); context.setLineDash([]);
+              context.fillStyle = active ? "#ffffff" : "#facc15"; context.font = "11px Arial"; context.fillText(mark.a.price.toFixed(drawingStateRef.current.decimals), 8, a.y - 6);
+            } else if (mark.type === "text") {
+              context.font = "13px Arial"; context.lineWidth = 3; context.strokeStyle = "#080808"; context.strokeText(mark.text ?? "", a.x + 7, a.y - 7);
+              context.fillStyle = "#ffffff"; context.fillText(mark.text ?? "", a.x + 7, a.y - 7);
+            } else if (b) {
+              context.beginPath();
+              if (mark.type === "line") { context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.stroke(); }
+              else { const left = Math.min(a.x, b.x), top = Math.min(a.y, b.y), width = Math.abs(b.x - a.x), height = Math.abs(b.y - a.y); context.fillStyle = "rgba(96,165,250,0.12)"; context.fillRect(left, top, width, height); context.strokeRect(left, top, width, height); }
+            }
             context.restore();
-          };
-          state.marks.forEach((mark)=>draw(mark));
-          const selected=state.marks.find((mark)=>mark.id===state.selectedMarkId);
-          if(selected){const a=xy(selected.a);if(a.x!==null&&a.y!==null){const x=selected.type==="horizontal"?context.canvas.clientWidth-28:a.x;context.beginPath();context.arc(x,a.y,5,0,Math.PI*2);context.fillStyle="#080808";context.fill();context.lineWidth=2;context.strokeStyle="#ffffff";context.stroke();}if("b" in selected){const p=xy(selected.b);if(p.x!==null&&p.y!==null){context.beginPath();context.arc(p.x,p.y,5,0,Math.PI*2);context.fillStyle="#080808";context.fill();context.lineWidth=2;context.strokeStyle="#ffffff";context.stroke();}}}
-          if(state.pendingPoint&&state.previewPoint)draw(state.drawingTool==="line"?{id:-1,type:"line",a:state.pendingPoint,b:state.previewPoint}:{id:-1,type:"rectangle",a:state.pendingPoint,b:state.previewPoint},true);
+          }
+          context.restore();
         });
       },
     };
-    const drawingPrimitive={attached:(params:{requestUpdate?:()=>void})=>{drawingPrimitiveRequestRef.current=params.requestUpdate??null;},detached:()=>{drawingPrimitiveRequestRef.current=null;},updateAllViews:()=>undefined,paneViews:()=>[{renderer:()=>drawingRenderer,zOrder:()=>"top" as const}]};
+    const drawingPaneView = { renderer: () => drawingRenderer, zOrder: () => "top" as const };
+    const drawingPrimitive = {
+      attached: (params: { requestUpdate?: () => void }) => { drawingPrimitiveRequestRef.current = params.requestUpdate ?? null; },
+      detached: () => { drawingPrimitiveRequestRef.current = null; renderedMarks = []; },
+      updateAllViews: () => {
+        const state = drawingStateRef.current;
+        const toXY = (point: ChartPoint) => {
+          const x = getDrawingX(point.time), y = series.priceToCoordinate(point.price);
+          return x === null || y === null ? null : { x, y };
+        };
+        const next: RenderMark[] = [];
+        const add = (mark: ChartMark, ghost = false) => {
+          const a = toXY(mark.a);
+          if (!a) return;
+          const b = "b" in mark ? toXY(mark.b) ?? undefined : undefined;
+          if ("b" in mark && !b) return;
+          next.push({ mark, a, b, active: mark.id === state.selectedMarkId, ghost });
+        };
+        state.marks.forEach((mark) => add(mark));
+        if (state.pendingPoint && state.previewPoint) {
+          add(state.drawingTool === "line"
+            ? { id: -1, type: "line", a: state.pendingPoint, b: state.previewPoint }
+            : { id: -1, type: "rectangle", a: state.pendingPoint, b: state.previewPoint }, true);
+        }
+        const selected = state.marks.find((mark) => mark.id === state.selectedMarkId);
+        if (selected) {
+          const a = toXY(selected.a);
+          if (a) {
+            const handleA: ChartMark = selected.type === "horizontal"
+              ? { id: -2, type: "horizontal", a: selected.a }
+              : { id: -2, type: "text", a: selected.a, text: "" };
+            next.push({ mark: handleA, a: selected.type === "horizontal" ? { x: -1000, y: a.y } : a, active: true, ghost: false });
+          }
+          if ("b" in selected) {
+            const b = toXY(selected.b);
+            if (b) next.push({ mark: { id: -3, type: "text", a: selected.b, text: "" }, a: b, active: true, ghost: false });
+          }
+        }
+        renderedMarks = next;
+      },
+      paneViews: () => [drawingPaneView],
+    };
     series.attachPrimitive(drawingPrimitive as never);
     setChartReady(true);
     const refreshOverlay=()=>{setOverlayVersion((value)=>value+1);drawingPrimitiveRequestRef.current?.();};
