@@ -30,8 +30,6 @@ import {
   StepBack,
   StepForward,
   MousePointer2,
-  TrendingUp,
-  TrendingDown,
   Square,
   Type,
   Undo2,
@@ -40,7 +38,7 @@ import {
 
 type Timeframe = "MN1" | "W1" | "D1" | "H4" | "H1";
 type Instrument = "eurusd" | "xauusd" | "usatechidxusd";
-type DrawingTool = "cursor" | "line" | "rectangle" | "long" | "short" | "text" | "delete";
+type DrawingTool = "cursor" | "line" | "rectangle" | "text" | "delete";
 type ChartPoint = { time: number; price: number };
 type ChartMark =
   | { id: number; type: "text"; a: ChartPoint; text?: string }
@@ -386,16 +384,6 @@ export default function TrainingPage() {
         if (state.pendingPoint && state.previewPoint) {
           if (state.drawingTool === "line") {
             add({ id: -1, type: "line", a: state.pendingPoint, b: state.previewPoint }, true);
-          } else if (state.drawingTool === "long" || state.drawingTool === "short") {
-            const isLong = state.drawingTool === "long";
-            const distance = Math.max(Math.abs(state.pendingPoint.price - state.previewPoint.price), Math.abs(state.pendingPoint.price) * 0.00001);
-            add({
-              id: -1,
-              type: state.drawingTool,
-              a: state.pendingPoint,
-              b: { time: state.previewPoint.time, price: state.pendingPoint.price + (isLong ? -distance : distance) },
-              tpPrice: state.pendingPoint.price + (isLong ? distance : -distance),
-            }, true);
           } else {
             add({ id: -1, type: "rectangle", a: state.pendingPoint, b: state.previewPoint }, true);
           }
@@ -409,7 +397,7 @@ export default function TrainingPage() {
             const isPosition = selected.type === "long" || selected.type === "short";
             const tp = "tpPrice" in selected ? series.priceToCoordinate(selected.tpPrice) : null;
             item.handles = {
-              a,
+              a: isPosition && "orderType" in selected && selected.orderType === "market" ? undefined : a,
               b: b ?? undefined,
               tp: tp !== null && b ? { x: b.x, y: tp } : undefined,
             };
@@ -722,6 +710,7 @@ export default function TrainingPage() {
       let hit:ChartMark|null=null,dist=14;
       if (selected && mode !== "move") hit = selected;
       else marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hit=m;}});
+      if (hit && (hit.type === "long" || hit.type === "short") && hit.orderType === "market" && mode === "move") hit = null;
       setSelectedMarkId(hit?.id??null);
       dragRef.current=hit?{id:hit.id,mode:hit===selected?mode:"move",startX:x,startY:y,original:hit}:null;
       if(hit){chartRef.current?.applyOptions({handleScroll:false,handleScale:false});event.stopPropagation();event.preventDefault();}
@@ -732,16 +721,7 @@ export default function TrainingPage() {
     if(!pendingPoint){setPendingPoint(point);setPreviewPoint(point);return;}
     if(drawingTool === "line" && event.shiftKey){point=snapLinePoint(pendingPoint,point);}
     const id = nextMarkId.current++;
-    if (drawingTool === "long" || drawingTool === "short") {
-      const isLong = drawingTool === "long";
-      const distance = Math.abs(pendingPoint.price - point.price);
-      const risk = Math.max(distance, Math.abs(pendingPoint.price) * 0.00001);
-      const stopPrice = pendingPoint.price + (isLong ? -risk : risk);
-      const targetPrice = pendingPoint.price + (isLong ? risk : -risk);
-      setMarks(v => [...v, { id, type: drawingTool, a: pendingPoint, b: { time: point.time, price: stopPrice }, tpPrice: targetPrice }]);
-    } else {
-      setMarks(v=>[...v,{id,type:drawingTool,a:pendingPoint,b:point} as ChartMark]);
-    }
+    setMarks(v=>[...v,{id,type:drawingTool,a:pendingPoint,b:point} as ChartMark]);
     setSelectedMarkId(id);setPendingPoint(null);setPreviewPoint(null);setDrawingTool("cursor");
   };
 
@@ -903,8 +883,6 @@ export default function TrainingPage() {
               {toolButton("cursor", "Курсор", MousePointer2)}
               {toolButton("line", "Линия (от точки до точки)", Minus)}
               {toolButton("rectangle", "Прямоугольник", Square)}
-              {toolButton("long", "Сделка лонг", TrendingUp)}
-              {toolButton("short", "Сделка шорт", TrendingDown)}
               {toolButton("text", "Текстовая заметка", Type)}
               {toolButton("delete", "Удалить пометку", Trash2)}
               <span className="mx-1 w-px bg-white/10" />
