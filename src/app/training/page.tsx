@@ -37,7 +37,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-type Timeframe = "D1" | "H4" | "H1";
+type Timeframe = "MN1" | "W1" | "D1" | "H4" | "H1";
 type Instrument = "eurusd" | "xauusd" | "usatechidxusd";
 type DrawingTool = "cursor" | "horizontal" | "line" | "rectangle" | "text" | "delete";
 type ChartPoint = { time: number; price: number };
@@ -100,7 +100,7 @@ export default function TrainingPage() {
   const nextMarkId = useRef(1);
   const drawingPrimitiveRequestRef = useRef<(() => void) | null>(null);
   const drawingStateRef = useRef({ marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, candles: allCandlesRef.current, currentIndex, timeframeSeconds: 3600, decimals: 5 });
-  drawingStateRef.current = { marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, candles: allCandlesRef.current, currentIndex, timeframeSeconds: timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600, decimals: instrumentDetails[instrument].decimals };
+  drawingStateRef.current = { marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, candles: allCandlesRef.current, currentIndex, timeframeSeconds: timeframe === "MN1" ? 2592000 : timeframe === "W1" ? 604800 : timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600, decimals: instrumentDetails[instrument].decimals };
 
   const selectedInstrument = instrumentDetails[instrument];
   const sessionDateLabel = sessionTime === null
@@ -423,7 +423,6 @@ export default function TrainingPage() {
     setTotalCandles(0);
     setCurrentReplayTime(null);
     setIsPlaying(false);
-    setMarks([]);
     setPendingPoint(null);
     setPreviewPoint(null);
     setSelectedMarkId(null);
@@ -526,7 +525,7 @@ export default function TrainingPage() {
 
   useEffect(() => { drawingPrimitiveRequestRef.current?.(); }, [marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, currentIndex, timeframe, instrument]);
 
-  const timeframeSeconds = timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600;
+  const timeframeSeconds = timeframe === "MN1" ? 2592000 : timeframe === "W1" ? 604800 : timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600;
 
   // Convert between chart coordinates and market time. Logical coordinates let
   // drawings extend into the empty space after the last revealed candle.
@@ -748,7 +747,7 @@ export default function TrainingPage() {
           </div>
 
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#111111] p-1">
-            {(["D1", "H4", "H1"] as Timeframe[]).map((tf) => (
+            {(["MN1", "W1", "D1", "H4", "H1"] as Timeframe[]).map((tf) => (
               <button key={tf} onClick={() => setTimeframe(tf)} className={`rounded-lg px-5 py-2 text-xs font-semibold transition ${timeframe === tf ? "bg-white text-black" : "text-zinc-500 hover:text-white"}`}>
                 {tf}
               </button>
