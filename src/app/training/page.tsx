@@ -324,7 +324,7 @@ export default function TrainingPage() {
                   const riskTop = Math.min(a.y, stopY), riskBottom = Math.max(a.y, stopY);
                   context.fillStyle = "rgba(255,255,255,0.10)"; context.fillRect(left, profitTop, width, Math.max(1, profitBottom - profitTop));
                   context.fillStyle = "rgba(0,0,0,0.45)"; context.fillRect(left, riskTop, width, Math.max(1, riskBottom - riskTop));
-                  context.strokeStyle = active ? "#ffffff" : isLong ? "#22c55e" : "#ef4444";
+                  context.strokeStyle = isLong ? "#ffffff" : "#000000";
                   context.beginPath(); context.moveTo(left, a.y); context.lineTo(right, a.y); context.stroke();
                   context.beginPath(); context.setLineDash([5, 4]); context.moveTo(left, targetY); context.lineTo(right, targetY); context.moveTo(left, stopY); context.lineTo(right, stopY); context.stroke(); context.setLineDash([]);
                   context.font = "11px Arial"; context.fillStyle = "#ffffff"; context.fillText(isLong ? "LONG" : "SHORT", left + 5, profitTop + 13);
