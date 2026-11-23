@@ -89,6 +89,7 @@ export default function TrainingPage() {
   const [currentReplayTime, setCurrentReplayTime] = useState<number | null>(null);
   const allCandlesRef = useRef<CandlestickData<Time>[]>([]);
   const replayIndexRef = useRef(-1);
+  const playbackAnimationRef = useRef<number | null>(null);
   const [drawingTool, setDrawingTool] = useState<DrawingTool>("cursor");
   const [marks, setMarks] = useState<ChartMark[]>([]);
   const [pendingPoint, setPendingPoint] = useState<ChartPoint | null>(null);
@@ -123,7 +124,7 @@ export default function TrainingPage() {
         timeZoneName: "short",
       });
 
-  const revealCandlesAt = useCallback((requestedIndex: number) => {
+  const revealCandlesAt = useCallback((requestedIndex: number, animationDuration = 0) => {
     const candles = allCandlesRef.current;
     const series = seriesRef.current;
     const chart = chartRef.current;
@@ -146,10 +147,34 @@ export default function TrainingPage() {
       ? visibleWidth
       : 100;
     const rightOffset = safeWidth * 0.3;
-    timeScale.setVisibleLogicalRange({
+    const targetRange = {
       from: nextIndex - safeWidth + rightOffset,
       to: nextIndex + rightOffset,
-    });
+    };
+    if (playbackAnimationRef.current !== null) {
+      window.cancelAnimationFrame(playbackAnimationRef.current);
+      playbackAnimationRef.current = null;
+    }
+    if (animationDuration > 0 && visibleRange) {
+      const startRange = { from: visibleRange.from, to: visibleRange.to };
+      let animationStart: number | null = null;
+      const animate = (timestamp: number) => {
+        if (animationStart === null) animationStart = timestamp;
+        const progress = Math.min(1, (timestamp - animationStart) / animationDuration);
+        timeScale.setVisibleLogicalRange({
+          from: startRange.from + (targetRange.from - startRange.from) * progress,
+          to: startRange.to + (targetRange.to - startRange.to) * progress,
+        });
+        if (progress < 1) {
+          playbackAnimationRef.current = window.requestAnimationFrame(animate);
+        } else {
+          playbackAnimationRef.current = null;
+        }
+      };
+      playbackAnimationRef.current = window.requestAnimationFrame(animate);
+    } else {
+      timeScale.setVisibleLogicalRange(targetRange);
+    }
     setCurrentIndex(nextIndex);
     setCandleCount(visibleCandles.length);
     setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
@@ -542,16 +567,25 @@ export default function TrainingPage() {
   useEffect(() => {
     if (!isPlaying || !hasData) return;
 
+    const intervalMs = Math.max(50, 1000 / playbackSpeed);
     const timer = window.setInterval(() => {
       const nextIndex = replayIndexRef.current + 1;
       if (nextIndex >= allCandlesRef.current.length) {
         setIsPlaying(false);
         return;
       }
-      revealCandlesAt(nextIndex);
-    }, Math.max(50, 1000 / playbackSpeed));
+      // Animate most of each candle interval; leave a small pause at the end
+      // so every playback speed remains visually distinct and stable.
+      revealCandlesAt(nextIndex, intervalMs * 0.85);
+    }, intervalMs);
 
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      if (playbackAnimationRef.current !== null) {
+        window.cancelAnimationFrame(playbackAnimationRef.current);
+        playbackAnimationRef.current = null;
+      }
+    };
   }, [isPlaying, hasData, playbackSpeed, revealCandlesAt]);
 
   return (
