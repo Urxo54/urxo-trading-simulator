@@ -144,6 +144,8 @@ export default function TrainingPage() {
     // reaches their entry. Rewinding before that candle restores the order.
     setMarks((current) => current.map((mark) => {
       if (!(mark.type === "long" || mark.type === "short") || mark.orderType === undefined || mark.createdIndex === undefined) return mark;
+      // Market entries are already open; only pending orders are trigger-checked.
+      if (mark.orderType !== "pending" && mark.triggerIndex === undefined) return mark;
       let triggerIndex: number | undefined;
       if (nextIndex > mark.createdIndex) {
         const from = Math.max(mark.createdIndex + 1, 0);
@@ -808,7 +810,7 @@ export default function TrainingPage() {
       const movedA=pointFromCoordinates(originalA+dx,originalAY+dy);
       if(!movedA)return;
       let updated:ChartMark;
-      if(mode==="resize-a") updated={...original,a:point} as ChartMark;
+      if(mode==="resize-a") updated={...original,a:point,...(original.type === "long" || original.type === "short") && original.orderType === "pending" ? {createdIndex:currentIndex,triggerIndex:undefined} : {}} as ChartMark;
       else if(mode==="resize-tp" && "tpPrice" in original) updated={...original,tpPrice:point.price};
       else if(mode==="resize-b" && "b" in original) updated = "tpPrice" in original ? { ...original, b: { ...original.b, price: point.price } } : { ...original, b: point };
       else if("b" in original){
@@ -822,7 +824,7 @@ export default function TrainingPage() {
           if (originalTpY === null) return;
           const movedTp = pointFromCoordinates(originalB+dx, originalTpY+dy);
           if (!movedTp) return;
-          updated={...original,a:movedA,b:movedB,tpPrice:movedTp.price};
+          updated={...original,a:movedA,b:movedB,tpPrice:movedTp.price,...(original.orderType === "pending" ? {createdIndex:currentIndex,triggerIndex:undefined} : {})};
         } else {
           updated={...original,a:movedA,b:movedB};
         }
