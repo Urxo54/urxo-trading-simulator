@@ -151,12 +151,31 @@ export default function TrainingPage() {
       from: nextIndex - safeWidth + rightOffset,
       to: nextIndex + rightOffset,
     };
+
+    // Follow the latest price vertically without changing the user's price zoom.
+    const priceScale = chart.priceScale("right");
+    const currentPriceRange = priceScale.getVisibleRange();
+    const priceRangeHeight = currentPriceRange
+      ? currentPriceRange.to - currentPriceRange.from
+      : 0;
+    const safePriceHeight = Number.isFinite(priceRangeHeight) && priceRangeHeight > 0
+      ? priceRangeHeight
+      : Math.max(Math.abs(lastCandle.close) * 0.02, 0.0001);
+    const targetPriceRange = {
+      from: lastCandle.close - safePriceHeight / 2,
+      to: lastCandle.close + safePriceHeight / 2,
+    };
+
     if (playbackAnimationRef.current !== null) {
       window.cancelAnimationFrame(playbackAnimationRef.current);
       playbackAnimationRef.current = null;
     }
-    if (animationDuration > 0 && visibleRange) {
+    if (animationDuration > 0 && visibleRange && currentPriceRange) {
       const startRange = { from: visibleRange.from, to: visibleRange.to };
+      const startPriceRange = {
+        from: currentPriceRange.from,
+        to: currentPriceRange.to,
+      };
       let animationStart: number | null = null;
       const animate = (timestamp: number) => {
         if (animationStart === null) animationStart = timestamp;
@@ -164,6 +183,10 @@ export default function TrainingPage() {
         timeScale.setVisibleLogicalRange({
           from: startRange.from + (targetRange.from - startRange.from) * progress,
           to: startRange.to + (targetRange.to - startRange.to) * progress,
+        });
+        priceScale.setVisibleRange({
+          from: startPriceRange.from + (targetPriceRange.from - startPriceRange.from) * progress,
+          to: startPriceRange.to + (targetPriceRange.to - startPriceRange.to) * progress,
         });
         if (progress < 1) {
           playbackAnimationRef.current = window.requestAnimationFrame(animate);
@@ -174,6 +197,7 @@ export default function TrainingPage() {
       playbackAnimationRef.current = window.requestAnimationFrame(animate);
     } else {
       timeScale.setVisibleLogicalRange(targetRange);
+      priceScale.setVisibleRange(targetPriceRange);
     }
     setCurrentIndex(nextIndex);
     setCandleCount(visibleCandles.length);
