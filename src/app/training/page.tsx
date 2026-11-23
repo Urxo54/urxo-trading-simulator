@@ -575,16 +575,28 @@ export default function TrainingPage() {
     if (logical === null || price === null || !Number.isFinite(price)) return null;
 
     const candles = allCandlesRef.current;
-    if (!candles.length) return null;
-    const left = Math.max(0, Math.min(candles.length - 1, Math.floor(logical)));
-    const right = Math.min(candles.length - 1, left + 1);
-    const fraction = logical - left;
+    const lastCandle = candles[currentIndex];
+    if (!candles.length || !lastCandle) return null;
+
+    // Future drawing space is measured from the last revealed candle, not
+    // from hidden historical data. This mirrors getDrawingX exactly.
     let time: number;
-    if (right > left) {
-      time = Number(candles[left].time) +
-        (Number(candles[right].time) - Number(candles[left].time)) * fraction;
+    if (logical >= currentIndex) {
+      time = Number(lastCandle.time) + (logical - currentIndex) * timeframeSeconds;
     } else {
-      time = Number(candles[left].time) + (logical - left) * timeframeSeconds;
+      const left = Math.max(0, Math.min(currentIndex, Math.floor(logical)));
+      const right = Math.min(currentIndex, left + 1);
+      const fraction = logical - left;
+      if (right > left) {
+        time = Number(candles[left].time) +
+          (Number(candles[right].time) - Number(candles[left].time)) * fraction;
+      } else {
+        const previous = candles[Math.max(0, left - 1)];
+        const span = left > 0
+          ? Number(candles[left].time) - Number(previous.time)
+          : timeframeSeconds;
+        time = Number(candles[left].time) + (logical - left) * span;
+      }
     }
     return { time, price };
   };
@@ -598,28 +610,33 @@ export default function TrainingPage() {
     const chart = chartRef.current;
     if (!chart) return null;
     const candles = allCandlesRef.current;
-    if (!candles.length) return null;
+    const lastCandle = candles[currentIndex];
+    if (!candles.length || !lastCandle) return null;
+
     let logical: number;
-    if (!candles.length) return null;
-    let low = 0;
-    let high = candles.length - 1;
-    while (low < high) {
-      const mid = Math.floor((low + high) / 2);
-      if (Number(candles[mid].time) < time) low = mid + 1;
-      else high = mid;
-    }
-    const right = low;
-    if (right === 0) {
-      const span = candles.length > 1 ? Number(candles[1].time) - Number(candles[0].time) : timeframeSeconds;
-      logical = (time - Number(candles[0].time)) / span;
+    // Keep future marks in the same replay-relative coordinate system used
+    // by the primitive renderer, even when hidden candles exist in memory.
+    if (time >= Number(lastCandle.time)) {
+      logical = currentIndex + (time - Number(lastCandle.time)) / timeframeSeconds;
     } else {
-      const left = right - 1;
-      const span = Number(candles[right].time) - Number(candles[left].time);
-      const fraction = span ? (time - Number(candles[left].time)) / span : 0;
-      logical = left + fraction;
-      if (time > Number(candles[candles.length - 1].time)) {
-        const last = candles.length - 1;
-        logical = last + (time - Number(candles[last].time)) / timeframeSeconds;
+      let low = 0;
+      let high = currentIndex;
+      while (low < high) {
+        const mid = Math.floor((low + high) / 2);
+        if (Number(candles[mid].time) < time) low = mid + 1;
+        else high = mid;
+      }
+      const right = low;
+      if (right === 0) {
+        const span = currentIndex > 0
+          ? Number(candles[1].time) - Number(candles[0].time)
+          : timeframeSeconds;
+        logical = (time - Number(candles[0].time)) / span;
+      } else {
+        const left = right - 1;
+        const span = Number(candles[right].time) - Number(candles[left].time);
+        const fraction = span ? (time - Number(candles[left].time)) / span : 0;
+        logical = left + fraction;
       }
     }
     return chart.timeScale().logicalToCoordinate(logical);
