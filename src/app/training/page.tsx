@@ -135,7 +135,12 @@ export default function TrainingPage() {
 
     replayIndexRef.current = nextIndex;
     series.setData(visibleCandles);
-    chart.timeScale().scrollToRealTime();
+    // Keep the newest candle around 70% of the chart width and move the
+    // visible window with it, leaving room to the right for upcoming candles.
+    chart.timeScale().setVisibleLogicalRange({
+      from: Math.max(-1, nextIndex - 70),
+      to: nextIndex + 30,
+    });
     setCurrentIndex(nextIndex);
     setCandleCount(visibleCandles.length);
     setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
@@ -232,7 +237,10 @@ export default function TrainingPage() {
         height: 520,
       });
       chart.priceScale("right").applyOptions({ autoScale: true });
-      chart.timeScale().fitContent();
+      chart.timeScale().setVisibleLogicalRange({
+        from: Math.max(-1, currentIndex - 70),
+        to: currentIndex + 30,
+      });
     });
 
     return () => cancelAnimationFrame(frame);
@@ -330,10 +338,9 @@ export default function TrainingPage() {
         series.setData(replayCandles);
         chart.priceScale("right").applyOptions({ autoScale: true });
         chart.timeScale().setVisibleLogicalRange({
-          from: -1,
-          to: replayCandles.length + 1,
+          from: Math.max(-1, initialIndex - 70),
+          to: initialIndex + 30,
         });
-        chart.timeScale().fitContent();
 
         const lastCandle = replayCandles[replayCandles.length - 1];
         setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
