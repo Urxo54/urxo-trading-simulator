@@ -249,7 +249,7 @@ export default function TrainingPage() {
       width: Math.max(container.clientWidth, 320),
       height: 520,
       layout: {
-        background: { type: ColorType.Solid, color: "#f4f4f5" },
+        background: { type: ColorType.Solid, color: "#e4e4e7" },
         textColor: "#52525b",
         fontFamily: "Arial, sans-serif",
       },
