@@ -249,7 +249,7 @@ export default function TrainingPage() {
       width: Math.max(container.clientWidth, 320),
       height: 520,
       layout: {
-        background: { type: ColorType.Solid, color: "#ffffff" },
+        background: { type: ColorType.Solid, color: "#f4f4f5" },
         textColor: "#52525b",
         fontFamily: "Arial, sans-serif",
       },
@@ -274,7 +274,7 @@ export default function TrainingPage() {
 
     const series = chart.addSeries(CandlestickSeries, {
       upColor: "#171717",
-      downColor: "#a1a1aa",
+      downColor: "#8b8b94",
       borderUpColor: "#171717",
       borderDownColor: "#71717a",
       wickUpColor: "#171717",
