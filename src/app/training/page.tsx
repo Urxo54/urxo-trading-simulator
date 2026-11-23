@@ -686,93 +686,196 @@ export default function TrainingPage() {
 
   const handleChartPointerDown = (event: import("react").PointerEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest("button")) return;
-    let point=pointFromPointer(event); if(!point)return;
-    const bounds=event.currentTarget.getBoundingClientRect(),x=event.clientX-bounds.left,y=event.clientY-bounds.top;
-    if(drawingTool==="cursor"){
-      const selected = marks.find(m => m.id === selectedMarkId);
-      let mode: "move" | "resize-a" | "resize-b" | "resize-tp" = "move";
-      if (selected && "b" in selected) {
-        const series = seriesRef.current;
-        if (series) {
-          const ax = coordinateForTime(selected.a.time), ay = series.priceToCoordinate(selected.a.price);
-          const bx = coordinateForTime(selected.b.time), by = series.priceToCoordinate(selected.b.price);
-          if ((selected.type === "long" || selected.type === "short") && "tpPrice" in selected) {
-            const tpY = series.priceToCoordinate(selected.tpPrice);
-            if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
-            else if (bx !== null && tpY !== null && Math.hypot(x-bx,y-tpY) <= 11) mode = "resize-tp";
-            else if (selected.orderType === "pending" && ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
-          } else {
-            if (ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
-            else if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
+    const point = pointFromPointer(event);
+    if (!point) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - bounds.left;
+    const y = event.clientY - bounds.top;
+
+    if (drawingTool === "cursor") {
+      const series = seriesRef.current;
+      let hit: ChartMark | null = null;
+      let mode: "move" | "move-vertical" | "resize-a" | "resize-b" | "resize-tp" = "move";
+
+      // Detect editable position handles on every order, not only the
+      // previously selected one. This makes handles work on first click.
+      if (series) {
+        for (let i = marks.length - 1; i >= 0; i -= 1) {
+          const candidate = marks[i];
+          if (candidate.type !== "long" && candidate.type !== "short") continue;
+          const ax = coordinateForTime(candidate.a.time);
+          const ay = series.priceToCoordinate(candidate.a.price);
+          const bx = coordinateForTime(candidate.b.time);
+          const by = series.priceToCoordinate(candidate.b.price);
+          const tpY = series.priceToCoordinate(candidate.tpPrice);
+          if (ax === null || ay === null || bx === null || by === null || tpY === null) continue;
+
+          if (Math.hypot(x - bx, y - tpY) <= 14) {
+            hit = candidate;
+            mode = "resize-tp";
+            break;
+          }
+          if (Math.hypot(x - bx, y - by) <= 14) {
+            hit = candidate;
+            mode = "resize-b";
+            break;
+          }
+          if (candidate.orderType === "pending" && Math.hypot(x - ax, y - ay) <= 14) {
+            hit = candidate;
+            mode = "resize-a";
+            break;
           }
         }
       }
 
-      let hit:ChartMark|null=null,dist=14;
-      if (selected && mode !== "move") hit = selected;
-      else marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hit=m;}});
-      if (hit && (hit.type === "long" || hit.type === "short") && hit.orderType === "market" && mode === "move") hit = null;
-      setSelectedMarkId(hit?.id??null);
-      const dragMode = hit === selected ? mode : hit && (hit.type === "long" || hit.type === "short") && hit.orderType === "pending" ? "move-vertical" : "move";
-      dragRef.current=hit?{id:hit.id,mode:dragMode,startX:x,startY:y,original:hit}:null;
-      if(hit){chartRef.current?.applyOptions({handleScroll:false,handleScale:false});event.stopPropagation();event.preventDefault();}
+      // If no handle was hit, find the drawing/order body under the pointer.
+      if (!hit) {
+        let nearest = 14;
+        for (let i = marks.length - 1; i >= 0; i -= 1) {
+          const candidate = marks[i];
+          const distance = markDistance(candidate, x, y);
+          if (distance < nearest) {
+            nearest = distance;
+            hit = candidate;
+          }
+        }
+        if (hit && (hit.type === "long" || hit.type === "short")) {
+          mode = hit.orderType === "pending" ? "move-vertical" : "move";
+        }
+      }
+
+      setSelectedMarkId(hit?.id ?? null);
+      const lockedMarketBody = Boolean(
+        hit && (hit.type === "long" || hit.type === "short") &&
+        hit.orderType === "market" && mode === "move"
+      );
+      dragRef.current = hit && !lockedMarketBody
+        ? { id: hit.id, mode, startX: x, startY: y, original: hit }
+        : null;
+
+      if (hit) {
+        chartRef.current?.applyOptions({ handleScroll: false, handleScale: false });
+        event.stopPropagation();
+        event.preventDefault();
+      }
       return;
     }
-    if(drawingTool==="delete"){let hitId:number|null=null,dist=18;marks.forEach(m=>{const d=markDistance(m,x,y);if(d<dist){dist=d;hitId=m.id;}});if(hitId!==null)setMarks(v=>v.filter(m=>m.id!==hitId));setSelectedMarkId(null);return;}
-    if(drawingTool==="text"){const value=window.prompt("Текст заметки:");if(value?.trim()){const id=nextMarkId.current++;setMarks(v=>[...v,{id,type:"text",a:point,text:value.trim()}]);setSelectedMarkId(id);}setDrawingTool("cursor");return;}
-    if(!pendingPoint){setPendingPoint(point);setPreviewPoint(point);return;}
-    if(drawingTool === "line" && event.shiftKey){point=snapLinePoint(pendingPoint,point);}
+
+    if (drawingTool === "delete") {
+      let hitId: number | null = null;
+      let nearest = 18;
+      marks.forEach((mark) => {
+        const distance = markDistance(mark, x, y);
+        if (distance < nearest) {
+          nearest = distance;
+          hitId = mark.id;
+        }
+      });
+      if (hitId !== null) setMarks((current) => current.filter((mark) => mark.id !== hitId));
+      setSelectedMarkId(null);
+      return;
+    }
+    if (drawingTool === "text") {
+      const value = window.prompt("Текст заметки:");
+      if (value?.trim()) {
+        const id = nextMarkId.current++;
+        setMarks((current) => [...current, { id, type: "text", a: point, text: value.trim() }]);
+        setSelectedMarkId(id);
+      }
+      setDrawingTool("cursor");
+      return;
+    }
+    if (!pendingPoint) {
+      setPendingPoint(point);
+      setPreviewPoint(point);
+      return;
+    }
+    const finalPoint = drawingTool === "line" && event.shiftKey
+      ? snapLinePoint(pendingPoint, point)
+      : point;
     const id = nextMarkId.current++;
-    setMarks(v=>[...v,{id,type:drawingTool,a:pendingPoint,b:point} as ChartMark]);
-    setSelectedMarkId(id);setPendingPoint(null);setPreviewPoint(null);setDrawingTool("cursor");
+    setMarks((current) => [...current, { id, type: drawingTool, a: pendingPoint, b: finalPoint } as ChartMark]);
+    setSelectedMarkId(id);
+    setPendingPoint(null);
+    setPreviewPoint(null);
+    setDrawingTool("cursor");
   };
 
   const handleChartPointerMove = (event: import("react").PointerEvent<HTMLDivElement>) => {
     setOverlayVersion((value) => value + 1);
-    let point=pointFromPointer(event);if(!point)return;
-    if(dragRef.current){
-      const bounds=event.currentTarget.getBoundingClientRect();
-      const x=event.clientX-bounds.left,y=event.clientY-bounds.top;
-      const {id,mode,startX,startY,original}=dragRef.current;
-      const dx=x-startX,dy=y-startY;
-      const originalA=coordinateForTime(original.a.time);
-      const originalAY=seriesRef.current?.priceToCoordinate(original.a.price) ?? null;
-      if(originalA===null||originalAY===null)return;
-      const movedA=pointFromCoordinates(originalA+dx,originalAY+dy);
-      if(!movedA)return;
-      let updated:ChartMark;
-      if(mode==="resize-a" && "tpPrice" in original && original.orderType === "pending") updated={...original,a:{...original.a,price:point.price}};
-      else if(mode==="resize-a") updated={...original,a:point} as ChartMark;
-      else if(mode==="resize-tp" && "tpPrice" in original) updated={...original,tpPrice:point.price};
-      else if(mode==="resize-b" && "b" in original) updated = "tpPrice" in original ? { ...original, b: { ...original.b, price: point.price } } : { ...original, b: point };
-      else if(mode==="move-vertical" && "b" in original && "tpPrice" in original) {
-        const startPrice = seriesRef.current?.coordinateToPrice(startY);
+    const point = pointFromPointer(event);
+    if (!point) return;
+
+    if (dragRef.current) {
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - bounds.left;
+      const y = event.clientY - bounds.top;
+      const { id, mode, startX, startY, original } = dragRef.current;
+      let updated: ChartMark;
+
+      if (mode === "resize-a" && (original.type === "long" || original.type === "short") && original.orderType === "pending") {
+        // A pending order's entry handle changes price only; its time stays fixed.
+        updated = { ...original, a: { ...original.a, price: point.price } };
+      } else if (mode === "resize-a") {
+        updated = { ...original, a: point } as ChartMark;
+      } else if (mode === "resize-tp" && (original.type === "long" || original.type === "short")) {
+        updated = { ...original, tpPrice: point.price };
+      } else if (mode === "resize-b" && "b" in original) {
+        updated = "tpPrice" in original
+          ? { ...original, b: { ...original.b, price: point.price } }
+          : { ...original, b: point };
+      } else if (mode === "move-vertical" && (original.type === "long" || original.type === "short")) {
+        const series = seriesRef.current;
+        const startPrice = series?.coordinateToPrice(startY);
         if (startPrice === null || startPrice === undefined) return;
         const priceDelta = point.price - startPrice;
-        updated = {...original,a:{...original.a,price:original.a.price+priceDelta},b:{...original.b,price:original.b.price+priceDelta},tpPrice:original.tpPrice+priceDelta};
-      }
-      else if("b" in original){
-        const originalB=coordinateForTime(original.b.time);
-        const originalBY=seriesRef.current?.priceToCoordinate(original.b.price) ?? null;
-        if(originalB===null||originalBY===null)return;
-        const movedB=pointFromCoordinates(originalB+dx,originalBY+dy);
-        if(!movedB)return;
+        updated = {
+          ...original,
+          a: { ...original.a, price: original.a.price + priceDelta },
+          b: { ...original.b, price: original.b.price + priceDelta },
+          tpPrice: original.tpPrice + priceDelta,
+        };
+      } else if ("b" in original) {
+        const originalAX = coordinateForTime(original.a.time);
+        const originalAY = seriesRef.current?.priceToCoordinate(original.a.price) ?? null;
+        const originalBX = coordinateForTime(original.b.time);
+        const originalBY = seriesRef.current?.priceToCoordinate(original.b.price) ?? null;
+        if (originalAX === null || originalAY === null || originalBX === null || originalBY === null) return;
+        const dx = x - startX;
+        const dy = y - startY;
+        const movedA = pointFromCoordinates(originalAX + dx, originalAY + dy);
+        const movedB = pointFromCoordinates(originalBX + dx, originalBY + dy);
+        if (!movedA || !movedB) return;
         if ("tpPrice" in original) {
           const originalTpY = seriesRef.current?.priceToCoordinate(original.tpPrice) ?? null;
-          if (originalTpY === null) return;
-          const movedTp = pointFromCoordinates(originalB+dx, originalTpY+dy);
+          const movedTp = originalTpY === null ? null : pointFromCoordinates(originalBX + dx, originalTpY + dy);
           if (!movedTp) return;
-          updated={...original,a:movedA,b:movedB,tpPrice:movedTp.price};
+          updated = { ...original, a: movedA, b: movedB, tpPrice: movedTp.price };
         } else {
-          updated={...original,a:movedA,b:movedB};
+          updated = { ...original, a: movedA, b: movedB };
         }
-      } else updated={...original,a:movedA};
-      chartRef.current?.setCrosshairPosition(point.price,point.time as Time,seriesRef.current!);
-      setMarks(v=>v.map(m=>m.id===id?updated:m));
+      } else {
+        const originalAX = coordinateForTime(original.a.time);
+        const originalAY = seriesRef.current?.priceToCoordinate(original.a.price) ?? null;
+        if (originalAX === null || originalAY === null) return;
+        const movedA = pointFromCoordinates(originalAX + (x - startX), originalAY + (y - startY));
+        if (!movedA) return;
+        updated = { ...original, a: movedA } as ChartMark;
+      }
+
+      if (seriesRef.current) {
+        chartRef.current?.setCrosshairPosition(point.price, point.time as Time, seriesRef.current);
+      }
+      setMarks((current) => current.map((mark) => mark.id === id ? updated : mark));
       return;
     }
-    if(pendingPoint){if(drawingTool === "line" && event.shiftKey){point=snapLinePoint(pendingPoint,point);}setPreviewPoint(point);}
+    if (pendingPoint) {
+      setPreviewPoint(drawingTool === "line" && event.shiftKey
+        ? snapLinePoint(pendingPoint, point)
+        : point);
+    }
   };
+
   const handleChartPointerUp = () => { if(dragRef.current){dragRef.current=null;chartRef.current?.applyOptions({handleScroll:true,handleScale:true});chartRef.current?.clearCrosshairPosition();} };
 
   const createPosition = (direction: "long" | "short", orderType: "market" | "pending") => {
