@@ -647,6 +647,7 @@ export default function TrainingPage() {
           if (ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
           else if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
         }
+      }
 
       let hit:ChartMark|null=null,dist=14;
       if (selected && mode !== "move") hit = selected;
