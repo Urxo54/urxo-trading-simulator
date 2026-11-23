@@ -135,11 +135,20 @@ export default function TrainingPage() {
 
     replayIndexRef.current = nextIndex;
     series.setData(visibleCandles);
-    // Keep the newest candle around 70% of the chart width and move the
-    // visible window with it, leaving room to the right for upcoming candles.
-    chart.timeScale().setVisibleLogicalRange({
-      from: Math.max(-1, nextIndex - 70),
-      to: nextIndex + 30,
+    // Preserve the user's current zoom (number of visible bars), while
+    // shifting that same-width window along with the newest revealed candle.
+    const timeScale = chart.timeScale();
+    const visibleRange = timeScale.getVisibleLogicalRange();
+    const visibleWidth = visibleRange
+      ? visibleRange.to - visibleRange.from
+      : 100;
+    const safeWidth = Number.isFinite(visibleWidth) && visibleWidth > 1
+      ? visibleWidth
+      : 100;
+    const rightOffset = safeWidth * 0.3;
+    timeScale.setVisibleLogicalRange({
+      from: nextIndex - safeWidth + rightOffset,
+      to: nextIndex + rightOffset,
     });
     setCurrentIndex(nextIndex);
     setCandleCount(visibleCandles.length);
