@@ -249,22 +249,22 @@ export default function TrainingPage() {
       width: Math.max(container.clientWidth, 320),
       height: 520,
       layout: {
-        background: { type: ColorType.Solid, color: "#e4e4e7" },
-        textColor: "#52525b",
+        background: { type: ColorType.Solid, color: "#080808" },
+        textColor: "#a1a1aa",
         fontFamily: "Arial, sans-serif",
       },
       grid: {
-        vertLines: { color: "rgba(0,0,0,0.07)" },
-        horzLines: { color: "rgba(0,0,0,0.07)" },
+        vertLines: { color: "rgba(255,255,255,0.045)" },
+        horzLines: { color: "rgba(255,255,255,0.045)" },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: "rgba(0,0,0,0.35)", width: 1, style: 2 },
-        horzLine: { color: "rgba(0,0,0,0.35)", width: 1, style: 2 },
+        vertLine: { color: "rgba(255,255,255,0.3)", width: 1, style: 2 },
+        horzLine: { color: "rgba(255,255,255,0.3)", width: 1, style: 2 },
       },
-      rightPriceScale: { borderColor: "rgba(0,0,0,0.14)" },
+      rightPriceScale: { borderColor: "rgba(255,255,255,0.1)" },
       timeScale: {
-        borderColor: "rgba(0,0,0,0.14)",
+        borderColor: "rgba(255,255,255,0.1)",
         timeVisible: true,
         secondsVisible: false,
       },
@@ -273,12 +273,12 @@ export default function TrainingPage() {
     });
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#171717",
-      downColor: "#8b8b94",
-      borderUpColor: "#171717",
-      borderDownColor: "#71717a",
-      wickUpColor: "#171717",
-      wickDownColor: "#71717a",
+      upColor: "#ffffff",
+      downColor: "#666666",
+      borderUpColor: "#ffffff",
+      borderDownColor: "#666666",
+      wickUpColor: "#ffffff",
+      wickDownColor: "#777777",
     });
 
     chartRef.current = chart;
@@ -323,7 +323,7 @@ export default function TrainingPage() {
                   const profitTop = Math.min(a.y, targetY), profitBottom = Math.max(a.y, targetY);
                   const riskTop = Math.min(a.y, stopY), riskBottom = Math.max(a.y, stopY);
                   context.fillStyle = "rgba(255,255,255,0.10)"; context.fillRect(left, profitTop, width, Math.max(1, profitBottom - profitTop));
-                  context.fillStyle = "rgba(212,212,216,0.09)"; context.fillRect(left, riskTop, width, Math.max(1, riskBottom - riskTop));
+                  context.fillStyle = "rgba(0,0,0,0.45)"; context.fillRect(left, riskTop, width, Math.max(1, riskBottom - riskTop));
                   context.strokeStyle = active ? "#ffffff" : isLong ? "#22c55e" : "#ef4444";
                   context.beginPath(); context.moveTo(left, a.y); context.lineTo(right, a.y); context.stroke();
                   context.beginPath(); context.setLineDash([5, 4]); context.moveTo(left, targetY); context.lineTo(right, targetY); context.moveTo(left, stopY); context.lineTo(right, stopY); context.stroke(); context.setLineDash([]);
