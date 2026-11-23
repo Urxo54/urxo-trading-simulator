@@ -98,6 +98,9 @@ export default function TrainingPage() {
   const dragRef = useRef<{ id: number; mode: "move" | "resize-a" | "resize-b"; start: ChartPoint; original: ChartMark } | null>(null);
   const [, setOverlayVersion] = useState(0);
   const nextMarkId = useRef(1);
+  const drawingPrimitiveRequestRef = useRef<(() => void) | null>(null);
+  const drawingStateRef = useRef({ marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, candles: allCandlesRef.current, currentIndex, timeframeSeconds: 3600, decimals: 5 });
+  drawingStateRef.current = { marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, candles: allCandlesRef.current, currentIndex, timeframeSeconds: timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600, decimals: instrumentDetails[instrument].decimals };
 
   const selectedInstrument = instrumentDetails[instrument];
   const sessionDateLabel = sessionTime === null
@@ -278,9 +281,41 @@ export default function TrainingPage() {
 
     chartRef.current = chart;
     seriesRef.current = series;
+    const getDrawingX = (time: number): number | null => {
+      const state = drawingStateRef.current, candles = state.candles, last = candles[state.currentIndex];
+      if (!last) return null;
+      let logical: number;
+      if (time >= Number(last.time)) logical = state.currentIndex + (time - Number(last.time)) / state.timeframeSeconds;
+      else { let low = 0, high = Math.min(state.currentIndex, candles.length - 1); while (low < high) { const mid = Math.floor((low + high) / 2); if (Number(candles[mid].time) < time) low = mid + 1; else high = mid; } const right = low; if (right === 0) logical = 0; else { const left = right - 1, span = Number(candles[right].time) - Number(candles[left].time); logical = left + (span ? (time - Number(candles[left].time)) / span : 0); } }
+      return chart.timeScale().logicalToCoordinate(logical);
+    };
+    const drawingRenderer = {
+      draw: (target: { useMediaCoordinateSpace: (callback: (scope: { context: CanvasRenderingContext2D }) => void) => void }) => {
+        target.useMediaCoordinateSpace(({ context }) => {
+          const state = drawingStateRef.current;
+          const xy = (p: ChartPoint) => ({ x: getDrawingX(p.time), y: series.priceToCoordinate(p.price) });
+          const draw = (mark: ChartMark, ghost = false) => {
+            const a = xy(mark.a); if (a.x === null || a.y === null) return;
+            const active = mark.id === state.selectedMarkId;
+            context.save(); context.lineWidth = active ? 2.5 : 1.5;
+            context.strokeStyle = active ? "#ffffff" : mark.type === "horizontal" ? "#facc15" : mark.type === "rectangle" ? "#60a5fa" : "#f472b6";
+            if (ghost) context.setLineDash([5,4]);
+            if (mark.type === "horizontal") { context.setLineDash([6,4]); context.beginPath(); context.moveTo(0,a.y); context.lineTo(context.canvas.clientWidth,a.y); context.stroke(); context.setLineDash([]); context.fillStyle=active?"#ffffff":"#facc15"; context.font="11px Arial"; context.fillText(mark.a.price.toFixed(state.decimals),8,a.y-6); }
+            else if (mark.type === "text") { context.font="13px Arial"; context.lineWidth=3; context.strokeStyle="#080808"; context.strokeText(mark.text??"",a.x+7,a.y-7); context.fillStyle="#ffffff"; context.fillText(mark.text??"",a.x+7,a.y-7); }
+            else if ("b" in mark) { const p=xy(mark.b); if(p.x===null||p.y===null){context.restore();return;} context.beginPath(); if(mark.type==="line"){context.moveTo(a.x,a.y);context.lineTo(p.x,p.y);context.stroke();} else {const left=Math.min(a.x,p.x),top=Math.min(a.y,p.y),w=Math.abs(p.x-a.x),h=Math.abs(p.y-a.y);context.fillStyle="rgba(96,165,250,0.12)";context.fillRect(left,top,w,h);context.strokeRect(left,top,w,h);} }
+            context.restore();
+          };
+          state.marks.forEach((mark)=>draw(mark));
+          const selected=state.marks.find((mark)=>mark.id===state.selectedMarkId);
+          if(selected){const a=xy(selected.a);if(a.x!==null&&a.y!==null){const x=selected.type==="horizontal"?context.canvas.clientWidth-28:a.x;context.beginPath();context.arc(x,a.y,5,0,Math.PI*2);context.fillStyle="#080808";context.fill();context.lineWidth=2;context.strokeStyle="#ffffff";context.stroke();}if("b" in selected){const p=xy(selected.b);if(p.x!==null&&p.y!==null){context.beginPath();context.arc(p.x,p.y,5,0,Math.PI*2);context.fillStyle="#080808";context.fill();context.lineWidth=2;context.strokeStyle="#ffffff";context.stroke();}}}
+          if(state.pendingPoint&&state.previewPoint)draw(state.drawingTool==="line"?{id:-1,type:"line",a:state.pendingPoint,b:state.previewPoint}:{id:-1,type:"rectangle",a:state.pendingPoint,b:state.previewPoint},true);
+        });
+      },
+    };
+    const drawingPrimitive={attached:(params:{requestUpdate?:()=>void})=>{drawingPrimitiveRequestRef.current=params.requestUpdate??null;},detached:()=>{drawingPrimitiveRequestRef.current=null;},updateAllViews:()=>undefined,paneViews:()=>[{renderer:()=>drawingRenderer,zOrder:()=>"top" as const}]};
+    series.attachPrimitive(drawingPrimitive as never);
     setChartReady(true);
-
-    const refreshOverlay = () => setOverlayVersion((value) => value + 1);
+    const refreshOverlay=()=>{setOverlayVersion((value)=>value+1);drawingPrimitiveRequestRef.current?.();};
     chart.timeScale().subscribeVisibleTimeRangeChange(refreshOverlay);
     const resizeObserver = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width;
@@ -436,6 +471,8 @@ export default function TrainingPage() {
     return () => controller.abort();
   }, [chartReady, sessionReady, instrument, timeframe, selectedInstrument.decimals, retryCount]);
 
+  useEffect(() => { drawingPrimitiveRequestRef.current?.(); }, [marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, currentIndex, timeframe, instrument]);
+
   const timeframeSeconds = timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600;
 
   // Convert between chart coordinates and market time. Logical coordinates let
@@ -583,29 +620,6 @@ export default function TrainingPage() {
       className={`rounded-lg border p-2 transition ${drawingTool===tool?"border-white bg-white text-black":"border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"}`}><Icon size={16}/></button>
   );
 
-  const drawingMarkup = (() => {
-    const chart=chartRef.current,series=seriesRef.current;if(!chart||!series)return null;
-    const xy=(p:ChartPoint)=>({x:coordinateForTime(p.time),y:series.priceToCoordinate(p.price)});
-    const draw=(m:ChartMark,ghost=false)=>{const a=xy(m.a);if(a.x===null||a.y===null)return null;const active=m.id===selectedMarkId;
-      if(m.type==="horizontal")return <g key={m.id}><line x1="0" x2="100%" y1={a.y} y2={a.y} stroke={active?"#fff":"#facc15"} strokeWidth={active?2.5:1.5} strokeDasharray="6 4"/><text x="8" y={a.y-6} fill={active?"#fff":"#facc15"} fontSize="11">{m.a.price.toFixed(selectedInstrument.decimals)}</text></g>;
-      if(m.type==="text")return <text key={m.id} x={a.x+7} y={a.y-7} fill="white" fontSize="13" stroke="#080808" strokeWidth="3" paintOrder="stroke">{m.text}</text>;
-      const b=xy(m.b);if(b.x===null||b.y===null)return null;
-      if(m.type==="line")return <line key={m.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={active?"#fff":"#f472b6"} strokeWidth={active?3:2} strokeDasharray={ghost?"5 4":undefined}/>;
-      return <rect key={m.id} x={Math.min(a.x,b.x)} y={Math.min(a.y,b.y)} width={Math.abs(b.x-a.x)} height={Math.abs(b.y-a.y)} fill="rgba(96,165,250,0.12)" stroke={active?"#fff":"#60a5fa"} strokeWidth={active?2.5:1.5} strokeDasharray={ghost?"5 4":undefined}/>;
-    };
-    const out=marks.map(m=>draw(m));
-    const selectedMark = marks.find(m => m.id === selectedMarkId);
-    if (selectedMark) {
-      const a = xy(selectedMark.a);
-      if (a.x !== null && a.y !== null) out.push(<circle key={`handle-a-${selectedMark.id}`} cx={selectedMark.type === "horizontal" ? "calc(100% - 28px)" : a.x} cy={a.y} r="5" fill="#080808" stroke="#ffffff" strokeWidth="2" />);
-      if ("b" in selectedMark) {
-        const b = xy(selectedMark.b);
-        if (b.x !== null && b.y !== null) out.push(<circle key={`handle-b-${selectedMark.id}`} cx={b.x} cy={b.y} r="5" fill="#080808" stroke="#ffffff" strokeWidth="2" />);
-      }
-    }
-    if(pendingPoint&&previewPoint){const ghost:ChartMark=drawingTool==="line"?{id:-1,type:"line",a:pendingPoint,b:previewPoint}:{id:-1,type:"rectangle",a:pendingPoint,b:previewPoint};out.push(draw(ghost,true));}
-    return out;
-  })();
   useEffect(() => {
     if (!isPlaying || !hasData) return;
 
@@ -707,7 +721,6 @@ export default function TrainingPage() {
             </div>
             {drawingTool !== "cursor" && <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-lg border border-white/10 bg-[#111111]/90 px-3 py-2 text-[11px] text-zinc-300">{pendingPoint ? "Двигай мышь для размера · второй клик — зафиксировать (Shift — ровная линия)" : "Первый клик — начальная точка"}</div>}
             <div ref={chartContainerRef} onPointerDownCapture={handleChartPointerDown} onPointerMove={handleChartPointerMove} onPointerUp={handleChartPointerUp} onPointerCancel={handleChartPointerUp} className={`absolute inset-0 w-full transition-opacity ${hasData ? "opacity-100" : "pointer-events-none opacity-0"}`} />
-            {hasData && <svg className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible">{drawingMarkup}</svg>}
             {loading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-[#080808]">
                 <LoaderCircle className="animate-spin text-zinc-300" size={30} />
