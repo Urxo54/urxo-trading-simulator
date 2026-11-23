@@ -152,7 +152,9 @@ export default function TrainingPage() {
       to: nextIndex + rightOffset,
     };
 
-    // Follow the latest price vertically without changing the user's price zoom.
+    // Keep the latest price inside a comfortable central zone. Only recenter
+    // after it travels 25% of the visible price range away from the midpoint.
+    // This gives the candles room to move naturally before the chart follows.
     const priceScale = chart.priceScale("right");
     const currentPriceRange = priceScale.getVisibleRange();
     const priceRangeHeight = currentPriceRange
@@ -160,11 +162,23 @@ export default function TrainingPage() {
       : 0;
     const safePriceHeight = Number.isFinite(priceRangeHeight) && priceRangeHeight > 0
       ? priceRangeHeight
-      : Math.max(Math.abs(lastCandle.close) * 0.02, 0.0001);
-    const targetPriceRange = {
-      from: lastCandle.close - safePriceHeight / 2,
-      to: lastCandle.close + safePriceHeight / 2,
-    };
+      : 0;
+    const priceMidpoint = currentPriceRange
+      ? (currentPriceRange.from + currentPriceRange.to) / 2
+      : lastCandle.close;
+    const followThreshold = safePriceHeight * 0.25;
+    const shouldRecenter = Boolean(
+      currentPriceRange &&
+      safePriceHeight > 0 &&
+      Math.abs(lastCandle.close - priceMidpoint) >= followThreshold
+    );
+    const priceShift = shouldRecenter ? lastCandle.close - priceMidpoint : 0;
+    const targetPriceRange = currentPriceRange
+      ? {
+          from: currentPriceRange.from + priceShift,
+          to: currentPriceRange.to + priceShift,
+        }
+      : null;
 
     if (playbackAnimationRef.current !== null) {
       window.cancelAnimationFrame(playbackAnimationRef.current);
@@ -184,10 +198,12 @@ export default function TrainingPage() {
           from: startRange.from + (targetRange.from - startRange.from) * progress,
           to: startRange.to + (targetRange.to - startRange.to) * progress,
         });
-        priceScale.setVisibleRange({
-          from: startPriceRange.from + (targetPriceRange.from - startPriceRange.from) * progress,
-          to: startPriceRange.to + (targetPriceRange.to - startPriceRange.to) * progress,
-        });
+        if (shouldRecenter && targetPriceRange) {
+          priceScale.setVisibleRange({
+            from: startPriceRange.from + (targetPriceRange.from - startPriceRange.from) * progress,
+            to: startPriceRange.to + (targetPriceRange.to - startPriceRange.to) * progress,
+          });
+        }
         if (progress < 1) {
           playbackAnimationRef.current = window.requestAnimationFrame(animate);
         } else {
@@ -197,7 +213,9 @@ export default function TrainingPage() {
       playbackAnimationRef.current = window.requestAnimationFrame(animate);
     } else {
       timeScale.setVisibleLogicalRange(targetRange);
-      priceScale.setVisibleRange(targetPriceRange);
+      if (shouldRecenter && targetPriceRange) {
+        priceScale.setVisibleRange(targetPriceRange);
+      }
     }
     setCurrentIndex(nextIndex);
     setCandleCount(visibleCandles.length);
