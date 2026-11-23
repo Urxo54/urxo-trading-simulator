@@ -390,8 +390,13 @@ export default function TrainingPage() {
           const b = "b" in selected ? toXY(selected.b) : null;
           const item = next.find((entry) => entry.mark.id === selected.id);
           if (item && a) {
+            const isPosition = selected.type === "long" || selected.type === "short";
             const tp = "tpPrice" in selected ? series.priceToCoordinate(selected.tpPrice) : null;
-            item.handles = { a, b: b ?? undefined, tp: tp !== null && b ? { x: b.x, y: tp } : undefined };
+            item.handles = {
+              a: isPosition ? undefined : a,
+              b: b ?? undefined,
+              tp: tp !== null && b ? { x: b.x, y: tp } : undefined,
+            };
           }
         }
         renderedMarks = next;
@@ -645,11 +650,16 @@ export default function TrainingPage() {
     if (mark.type === "text") return Math.hypot(x-a.x,y-a.y);
     const b = xy(mark.b); if (b.x === null || b.y === null) return Infinity;
     if (mark.type === "line") { const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy,t=l?Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/l)):0; return Math.hypot(x-a.x-t*dx,y-a.y-t*dy); }
+    let top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
     if (mark.type === "long" || mark.type === "short") {
       const tpY = series.priceToCoordinate(mark.tpPrice);
-      if (tpY !== null && Math.abs(x - b.x) <= 10 && Math.abs(y - tpY) <= 10) return 0;
+      if (tpY !== null) {
+        if (Math.abs(x - b.x) <= 10 && Math.abs(y - tpY) <= 10) return 0;
+        top = Math.min(top, tpY);
+        bottom = Math.max(bottom, tpY);
+      }
     }
-    const left=Math.min(a.x,b.x),right=Math.max(a.x,b.x),top=Math.min(a.y,b.y),bottom=Math.max(a.y,b.y);
+    const left=Math.min(a.x,b.x),right=Math.max(a.x,b.x);
     return x>=left&&x<=right&&y>=top&&y<=bottom ? 0 : Math.hypot(x-Math.max(left,Math.min(right,x)),y-Math.max(top,Math.min(bottom,y)));
   };
 
@@ -665,12 +675,14 @@ export default function TrainingPage() {
         if (series) {
           const ax = coordinateForTime(selected.a.time), ay = series.priceToCoordinate(selected.a.price);
           const bx = coordinateForTime(selected.b.time), by = series.priceToCoordinate(selected.b.price);
-          if (ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
-          else if ((selected.type === "long" || selected.type === "short") && "tpPrice" in selected) {
+          if ((selected.type === "long" || selected.type === "short") && "tpPrice" in selected) {
             const tpY = series.priceToCoordinate(selected.tpPrice);
             if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
             else if (bx !== null && tpY !== null && Math.hypot(x-bx,y-tpY) <= 11) mode = "resize-tp";
-          } else if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
+          } else {
+            if (ax !== null && ay !== null && Math.hypot(x-ax,y-ay) <= 11) mode = "resize-a";
+            else if (bx !== null && by !== null && Math.hypot(x-bx,y-by) <= 11) mode = "resize-b";
+          }
         }
       }
 
@@ -723,7 +735,15 @@ export default function TrainingPage() {
         if(originalB===null||originalBY===null)return;
         const movedB=pointFromCoordinates(originalB+dx,originalBY+dy);
         if(!movedB)return;
-        updated={...original,a:movedA,b:movedB};
+        if ("tpPrice" in original) {
+          const originalTpY = seriesRef.current?.priceToCoordinate(original.tpPrice) ?? null;
+          if (originalTpY === null) return;
+          const movedTp = pointFromCoordinates(originalB+dx, originalTpY+dy);
+          if (!movedTp) return;
+          updated={...original,a:movedA,b:movedB,tpPrice:movedTp.price};
+        } else {
+          updated={...original,a:movedA,b:movedB};
+        }
       } else updated={...original,a:movedA};
       chartRef.current?.setCrosshairPosition(point.price,point.time as Time,seriesRef.current!);
       setMarks(v=>v.map(m=>m.id===id?updated:m));
