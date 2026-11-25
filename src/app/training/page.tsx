@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { findFirstPriceTouch, findFirstTradeExit, positionRightEdgeIndex } from "@/lib/trading-replay";
 import {
   CandlestickSeries,
@@ -68,13 +67,13 @@ type HistoricalResponse = {
 type ReviewSnapshot = { instrument: Instrument; timeframe: Timeframe; sessionTime: number; currentReplayTime: number; marks: ChartMark[]; tradeResult: "take-profit" | "stop-loss" };
 
 export default function TrainingPage() {
-  const router = useRouter();
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
 
   const [instrument, setInstrument] = useState<Instrument>("eurusd");
   const [reviewMode, setReviewMode] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const reviewRestoreRef = useRef<ReviewSnapshot | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionTime, setSessionTime] = useState<number | null>(null);
@@ -1041,9 +1040,14 @@ export default function TrainingPage() {
     setPendingCancelledPrompt(true);
   };
 
+  const startNextChart = () => {
+    setIsPlaying(false);
+    window.location.href = `/training?session=${Date.now()}`;
+  };
+
   const skipCurrentChart = () => {
     setIsPlaying(false);
-    router.push("/training");
+    startNextChart();
   };
 
   const toolButton = (tool: DrawingTool, label: string, Icon: typeof MousePointer2) => (
@@ -1111,7 +1115,7 @@ export default function TrainingPage() {
         </div>
         <div className="flex items-center gap-2">
           <span className="rounded-lg border border-white/10 px-3 py-2 text-[10px] tracking-wider text-zinc-400">{reviewMode ? "TRADE ANALYSIS" : "HISTORICAL DATA"}</span>
-          <button aria-label="Settings" className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10">
+          <button type="button" aria-label="Настройки графика" title="Настройки графика" onClick={() => setSettingsOpen(true)} className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10">
             <Settings2 size={17} />
           </button>
         </div>
@@ -1143,9 +1147,9 @@ export default function TrainingPage() {
             </div>
             <div className="flex items-center gap-4 text-zinc-500">
               <span className="text-xs">Last <span className="text-zinc-300">{lastPrice}</span></span>
-              <button aria-label="Zoom out" onClick={() => chartRef.current?.timeScale().setVisibleLogicalRange({ from: 0, to: Math.max(candleCount * 0.65, 1) })} className="hover:text-white"><Minus size={15} /></button>
-              <button aria-label="Zoom in" onClick={() => chartRef.current?.timeScale().fitContent()} className="hover:text-white"><Plus size={15} /></button>
-              <button aria-label="Fit chart" onClick={() => chartRef.current?.timeScale().fitContent()} className="hover:text-white"><Maximize2 size={15} /></button>
+              <button type="button" aria-label="Zoom out" title="Отдалить" onClick={() => { const scale = chartRef.current?.timeScale(); const range = scale?.getVisibleLogicalRange(); if (scale && range) { const center = (range.from + range.to) / 2; const width = (range.to - range.from) * 1.25; scale.setVisibleLogicalRange({ from: center - width / 2, to: center + width / 2 }); } }} className="hover:text-white"><Minus size={15} /></button>
+              <button type="button" aria-label="Zoom in" title="Приблизить" onClick={() => { const scale = chartRef.current?.timeScale(); const range = scale?.getVisibleLogicalRange(); if (scale && range) { const center = (range.from + range.to) / 2; const width = Math.max((range.to - range.from) * 0.8, 5); scale.setVisibleLogicalRange({ from: center - width / 2, to: center + width / 2 }); } }} className="hover:text-white"><Plus size={15} /></button>
+              <button type="button" aria-label="Fit chart" title="Показать все доступные свечи" onClick={() => chartRef.current?.timeScale().fitContent()} className="hover:text-white"><Maximize2 size={15} /></button>
             </div>
           </div>
 
@@ -1318,7 +1322,7 @@ export default function TrainingPage() {
             </div>
           </div>
         </section>}
-        {reviewMode && <section className="mt-4 rounded-2xl border border-white/[0.08] bg-[#0c0c0c] p-5"><p className="text-xs font-semibold tracking-wider text-zinc-400">РЕЗУЛЬТАТ СДЕЛКИ</p><p className="mt-2 text-lg font-semibold">{tradeResult === "take-profit" ? "Take Profit достигнут" : "Сделка закрыта по Stop Loss"}</p><p className="mt-1 text-xs text-zinc-500">Можно менять масштаб, прокручивать график и переключать таймфреймы. Создание и редактирование пометок отключено.</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => router.push("/training")} className="rounded-lg border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 hover:bg-white/10">Новая тренировка</button><Link href="/" className="rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-zinc-200">В дашборд</Link></div></section>}
+        {reviewMode && <section className="mt-4 rounded-2xl border border-white/[0.08] bg-[#0c0c0c] p-5"><p className="text-xs font-semibold tracking-wider text-zinc-400">РЕЗУЛЬТАТ СДЕЛКИ</p><p className="mt-2 text-lg font-semibold">{tradeResult === "take-profit" ? "Take Profit достигнут" : "Сделка закрыта по Stop Loss"}</p><p className="mt-1 text-xs text-zinc-500">Можно менять масштаб, прокручивать график и переключать таймфреймы. Создание и редактирование пометок отключено.</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => startNextChart()} className="rounded-lg border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 hover:bg-white/10">Новая тренировка</button><Link href="/" className="rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-zinc-200">В дашборд</Link></div></section>}
         {!reviewMode && <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
           {[
             { label: "Instrument", value: selectedInstrument.label },
@@ -1337,6 +1341,19 @@ export default function TrainingPage() {
         </div>}
       </div>
 
+      {settingsOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="chart-settings-title" className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#111111] p-6 shadow-2xl">
+            <h3 id="chart-settings-title" className="text-lg font-semibold">Настройки графика</h3>
+            <p className="mt-2 text-sm text-zinc-400">Быстрые действия для отображения и инструментов.</p>
+            <div className="mt-5 flex flex-col gap-2">
+              <button type="button" onClick={() => { chartRef.current?.timeScale().fitContent(); setSettingsOpen(false); }} className="rounded-lg border border-white/15 px-4 py-3 text-left text-sm text-zinc-200 hover:bg-white/10">Сбросить масштаб графика</button>
+              {!reviewMode && <button type="button" onClick={() => { setDrawingTool("cursor"); setPendingPoint(null); setPreviewPoint(null); setSelectedMarkId(null); setSettingsOpen(false); }} className="rounded-lg border border-white/15 px-4 py-3 text-left text-sm text-zinc-200 hover:bg-white/10">Сбросить активный инструмент</button>}
+              <button type="button" onClick={() => setSettingsOpen(false)} className="mt-2 rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-zinc-200">Закрыть</button>
+            </div>
+          </div>
+        </div>
+      )}
       {pendingReviewId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#111111] p-6 shadow-2xl">
@@ -1381,7 +1398,7 @@ export default function TrainingPage() {
             <p className="mt-2 text-sm text-zinc-400">Вы можете продолжить тренировку на этом активе или открыть новый график.</p>
             <div className="mt-6 flex flex-col gap-2">
               <button onClick={() => setPendingCancelledPrompt(false)} className="w-full rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Продолжить на этом активе</button>
-              <button onClick={() => router.push("/training")} className="w-full rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Открыть новый график</button>
+              <button onClick={() => startNextChart()} className="w-full rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Открыть новый график</button>
               <Link href="/" className="w-full rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-400 hover:bg-white/10">В меню</Link>
             </div>
           </div>
@@ -1400,10 +1417,10 @@ export default function TrainingPage() {
                 if (sessionTime !== null && currentReplayTime !== null) {
                   const snapshot: ReviewSnapshot = { instrument, timeframe, sessionTime, currentReplayTime, marks, tradeResult };
                   window.sessionStorage.setItem("urxo-trade-review", JSON.stringify(snapshot));
-                  router.push("/training?mode=review");
+                  window.location.href = `/training?mode=review&session=${Date.now()}`;
                 }
               }} className="flex-1 rounded-lg border border-white/20 px-4 py-3 text-xs font-semibold text-white hover:bg-white/10">Проанализировать</button>
-              <button onClick={() => router.push("/training")} className="flex-1 rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Следующий график</button>
+              <button onClick={() => startNextChart()} className="flex-1 rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Следующий график</button>
               <Link href="/" className="flex-1 rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Главное меню</Link>
             </div>
           </div>
