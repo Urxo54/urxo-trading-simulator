@@ -1141,7 +1141,7 @@ export default function TrainingPage() {
                   return;
                 }
                 setIsPlaying(true);
-              }
+              }}
               className="rounded-lg bg-white px-4 py-2 text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
             >{isPlaying ? <Pause size={17} /> : <Play size={17} />}</button>
             <button
