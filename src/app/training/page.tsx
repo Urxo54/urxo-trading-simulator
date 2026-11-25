@@ -21,7 +21,6 @@ import {
   LoaderCircle,
   Maximize2,
   Minus,
-  FastForward,
   Rewind,
   Pause,
   Play,
@@ -31,7 +30,6 @@ import {
   SkipBack,
   SkipForward,
   StepBack,
-  StepForward,
   MousePointer2,
   Square,
   Type,
@@ -173,6 +171,7 @@ export default function TrainingPage() {
       const isLong = mark.type === "long";
 
       if (mark.triggerIndex !== undefined && nextIndex < mark.triggerIndex) {
+        if (mark.closedIndex !== undefined) closedTradeWasRewound = true;
         rewoundPendingId = mark.id;
         return {
           ...mark,
