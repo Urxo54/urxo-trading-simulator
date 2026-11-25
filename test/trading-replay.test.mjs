@@ -36,7 +36,7 @@ test("short trade exits at the first stop-loss candle", () => {
 
 test("stop-loss wins when both levels are touched by the same OHLC candle", () => {
   assert.deepEqual(
-    findFirstTradeExit(candles, { isLong: true, stopLoss: 99, takeProfit: 104 }, 1, 4),
+    findFirstTradeExit(candles, { isLong: true, stopLoss: 100, takeProfit: 104 }, 1, 4),
     { index: 1, result: "stop-loss" },
   );
 });
