@@ -94,7 +94,7 @@ export default function TrainingPage() {
   const [reviewTakeProfit, setReviewTakeProfit] = useState("");
   const [reviewStopLoss, setReviewStopLoss] = useState("");
   const [tradeResult, setTradeResult] = useState<"take-profit" | "stop-loss" | null>(null);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [playbackSpeed, setPlaybackSpeed] = useState(10);
   const [currentReplayTime, setCurrentReplayTime] = useState<number | null>(null);
   const allCandlesRef = useRef<CandlestickData<Time>[]>([]);
   const replayIndexRef = useRef(-1);
@@ -1217,20 +1217,17 @@ export default function TrainingPage() {
               disabled={!hasData || loading || reviewMode}
               className="ml-auto inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
             >Skip <SkipForward size={15} /></button>
-            <button
-              aria-label="Следующая свеча"
-              title="Следующая свеча"
-              disabled={!hasData || currentIndex >= totalCandles - 1}
-              onClick={() => revealCandlesAt(currentIndex + 1)}
-              className="rounded-lg border border-white/10 p-2 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-            ><StepForward size={17} /></button>
-            <button
-              aria-label="Вперёд на 50 свечей"
-              title="Вперёд на 50 свечей"
-              disabled={!hasData || currentIndex >= totalCandles - 1}
-              onClick={() => revealCandlesAt(currentIndex + 50)}
-              className="rounded-lg border border-white/10 p-2 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-            ><FastForward size={17} /></button>
+            {[1, 5, 10].map((count) => (
+              <button
+                key={count}
+                type="button"
+                aria-label={`Добавить ${count} свеч${count === 1 ? "у" : count < 5 ? "и" : "ей"}`}
+                title={`Вперёд на ${count} свеч${count === 1 ? "у" : count < 5 ? "и" : "ей"}`}
+                disabled={!hasData || currentIndex >= totalCandles - 1}
+                onClick={() => { setIsPlaying(false); revealCandlesAt(currentIndex + count); }}
+                className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+              >+{count} свеч{count === 1 ? "а" : count < 5 ? "и" : "ей"}</button>
+            ))}
             <button
               aria-label="К последней свече"
               title="К последней свече"
