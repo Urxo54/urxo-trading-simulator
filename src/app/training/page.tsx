@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { findFirstPriceTouch, findFirstTradeExit, positionRightEdgeIndex } from "@/lib/trading-replay";
 import {
   CandlestickSeries,
@@ -67,6 +68,7 @@ type HistoricalResponse = {
 type ReviewSnapshot = { instrument: Instrument; timeframe: Timeframe; sessionTime: number; currentReplayTime: number; marks: ChartMark[]; tradeResult: "take-profit" | "stop-loss" };
 
 export default function TrainingPage() {
+  const router = useRouter();
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -1041,8 +1043,25 @@ export default function TrainingPage() {
   };
 
   const startNextChart = () => {
+    const markets = Object.keys(instrumentDetails) as Instrument[];
+    const randomMarket = markets[Math.floor(Math.random() * markets.length)];
+    reviewRestoreRef.current = null;
+    sessionTimeRef.current = null;
     setIsPlaying(false);
-    window.location.href = `/training?session=${Date.now()}`;
+    setPendingReviewId(null);
+    setPendingIdeaPromptId(null);
+    setPendingCancelledPrompt(false);
+    setReviewMode(false);
+    setTradeResult(null);
+    setMarks([]);
+    setPendingPoint(null);
+    setPreviewPoint(null);
+    setSelectedMarkId(null);
+    setSessionTime(null);
+    setTimeframe("H1");
+    setInstrument(randomMarket);
+    setRetryCount((value) => value + 1);
+    router.push(`/training?session=${Date.now()}`);
   };
 
   const skipCurrentChart = () => {
@@ -1417,7 +1436,16 @@ export default function TrainingPage() {
                 if (sessionTime !== null && currentReplayTime !== null) {
                   const snapshot: ReviewSnapshot = { instrument, timeframe, sessionTime, currentReplayTime, marks, tradeResult };
                   window.sessionStorage.setItem("urxo-trade-review", JSON.stringify(snapshot));
-                  window.location.href = `/training?mode=review&session=${Date.now()}`;
+                  reviewRestoreRef.current = snapshot;
+                  sessionTimeRef.current = snapshot.sessionTime;
+                  setInstrument(snapshot.instrument);
+                  setTimeframe(snapshot.timeframe);
+                  setSessionTime(snapshot.sessionTime);
+                  setMarks(snapshot.marks);
+                  setTradeResult(snapshot.tradeResult);
+                  setReviewMode(true);
+                  setIsPlaying(false);
+                  router.push(`/training?mode=review&session=${Date.now()}`);
                 } else {
                   window.alert("Не удалось сохранить данные сделки для анализа. Попробуй ещё раз.");
                 }
