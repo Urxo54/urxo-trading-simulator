@@ -1007,17 +1007,17 @@ export default function TrainingPage() {
   )?.id ?? null;
 
   useEffect(() => {
-    if (pendingOrderId === null || reviewMode || pendingReviewId !== null || pendingIdeaPromptId !== null || tradeResult !== null) return;
+    if (!isPlaying || pendingOrderId === null || reviewMode || pendingReviewId !== null || pendingIdeaPromptId !== null || tradeResult !== null) return;
 
-    // Depend on the pending order identity, not the whole marks array:
-    // replay updates marks on every candle and must not reset this 5-second timer.
+    // The reminder countdown runs only while replay is playing.
+    // Candle updates do not reset it; pausing playback cancels the countdown.
     const timeout = window.setTimeout(() => {
       setIsPlaying(false);
       setPendingIdeaPromptId(pendingOrderId);
     }, 5000);
 
     return () => window.clearTimeout(timeout);
-  }, [pendingOrderId, reviewMode, pendingReviewId, pendingIdeaPromptId, tradeResult]);
+  }, [isPlaying, pendingOrderId, reviewMode, pendingReviewId, pendingIdeaPromptId, tradeResult]);
 
   useEffect(() => {
     if (!isPlaying || !hasData) return;
