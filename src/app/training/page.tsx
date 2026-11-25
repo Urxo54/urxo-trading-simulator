@@ -567,8 +567,10 @@ export default function TrainingPage() {
         }
 
         let initialIndex = -1;
+        const restoreTime = reviewRestoreRef.current?.currentReplayTime;
+        const targetTime = reviewMode && restoreTime ? restoreTime : (sessionTimeRef.current as number);
         for (let index = 0; index < validCandles.length; index += 1) {
-          if (Number(validCandles[index].time) <= (sessionTimeRef.current as number)) {
+          if (Number(validCandles[index].time) <= targetTime) {
             initialIndex = index;
           } else {
             break;
@@ -615,7 +617,7 @@ export default function TrainingPage() {
 
     void loadHistoricalData();
     return () => controller.abort();
-  }, [chartReady, sessionReady, instrument, timeframe, selectedInstrument.decimals, retryCount]);
+  }, [chartReady, sessionReady, instrument, timeframe, selectedInstrument.decimals, retryCount, reviewMode]);
 
   useEffect(() => { drawingPrimitiveRequestRef.current?.(); }, [marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, currentIndex, timeframe, instrument]);
 
@@ -738,6 +740,7 @@ export default function TrainingPage() {
   };
 
   const handleChartPointerDown = (event: import("react").PointerEvent<HTMLDivElement>) => {
+    if (reviewMode) return;
     if ((event.target as HTMLElement).closest("button")) return;
     const point = pointFromPointer(event);
     if (!point) return;
@@ -855,6 +858,7 @@ export default function TrainingPage() {
   };
 
   const handleChartPointerMove = (event: import("react").PointerEvent<HTMLDivElement>) => {
+    if (reviewMode) return;
     setOverlayVersion((value) => value + 1);
     const point = pointFromPointer(event);
     if (!point) return;
@@ -929,7 +933,7 @@ export default function TrainingPage() {
     }
   };
 
-  const handleChartPointerUp = () => { if(dragRef.current){dragRef.current=null;chartRef.current?.applyOptions({handleScroll:true,handleScale:true});chartRef.current?.clearCrosshairPosition();} };
+  const handleChartPointerUp = () => { if (reviewMode) return; if(dragRef.current){dragRef.current=null;chartRef.current?.applyOptions({handleScroll:true,handleScale:true});chartRef.current?.clearCrosshairPosition();} };
 
   const createPosition = (direction: "long" | "short", orderType: "market" | "pending") => {
     const candle = allCandlesRef.current[currentIndex];
@@ -1264,7 +1268,7 @@ export default function TrainingPage() {
         </div>
       )}
 
-      {tradeResult !== null && (
+      {tradeResult !== null && !reviewMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#111111] p-7 text-center shadow-2xl">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/20 text-xl">{tradeResult === "take-profit" ? "✓" : "×"}</div>
@@ -1272,6 +1276,13 @@ export default function TrainingPage() {
             <h3 className="mt-2 text-2xl font-semibold">{tradeResult === "take-profit" ? "Успешно!" : "Сработал стоп-лосс"}</h3>
             <p className="mt-2 text-sm text-zinc-400">{tradeResult === "take-profit" ? "Тейк-профит достигнут. Отличная работа!" : "Сделка закрыта по стоп-лоссу. Можно разобрать ситуацию и попробовать ещё раз."}</p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <button onClick={() => {
+                if (sessionTime !== null && currentReplayTime !== null) {
+                  const snapshot: ReviewSnapshot = { instrument, timeframe, sessionTime, currentReplayTime, marks, tradeResult };
+                  window.sessionStorage.setItem("urxo-trade-review", JSON.stringify(snapshot));
+                  window.location.assign("/training?mode=review");
+                }
+              }} className="flex-1 rounded-lg border border-white/20 px-4 py-3 text-xs font-semibold text-white hover:bg-white/10">Проанализировать</button>
               <button onClick={() => window.location.assign("/training")} className="flex-1 rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Следующий график</button>
               <Link href="/" className="flex-1 rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">В дашборд</Link>
               <Link href="/" className="flex-1 rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Главное меню</Link>
