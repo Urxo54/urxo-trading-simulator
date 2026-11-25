@@ -313,7 +313,7 @@ export default function TrainingPage() {
     setCurrentReplayTime(Number(lastCandle.time));
     setMarks(nextMarks);
     if (replayStopped) setIsPlaying(false);
-  }, [selectedInstrument.decimals, marks, pendingReviewId]);
+  }, [selectedInstrument.decimals, marks]);
 
   // Restore a completed trade when opening analysis mode.
   useEffect(() => {
