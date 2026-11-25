@@ -253,12 +253,13 @@ export default function TrainingPage() {
             // Re-anchor the position box at the actual fill candle. A pending
             // order may wait longer than its original drawing width, which
             // would otherwise leave the whole active position behind the chart.
-            const intervalSeconds = timeframe === "MN1" ? 2592000 : timeframe === "W1" ? 604800 : timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600;
             const fillTime = Number(candle.time);
+            const initialRightIndex = Math.min(i + 20, candles.length - 1);
+            const initialRightTime = Number(candles[initialRightIndex]?.time ?? fillTime);
             return {
               ...mark,
               a: { ...mark.a, time: fillTime },
-              b: { ...mark.b, time: fillTime + intervalSeconds * 20 },
+              b: { ...mark.b, time: initialRightTime },
               orderType: "market",
               triggerIndex: i,
             };
@@ -266,19 +267,33 @@ export default function TrainingPage() {
         }
         return mark;
       }
-      if (mark.orderType === "market" && mark.triggerIndex !== undefined && pendingReviewId !== mark.id) {
-        const first = Math.max(mark.triggerIndex + 1, 0);
-        for (let i = first; i <= nextIndex; i += 1) {
-          const candle = candles[i];
-          if (!candle) continue;
-          const hitStop = isLong ? candle.low <= mark.b.price : candle.high >= mark.b.price;
-          const hitTarget = isLong ? candle.high >= mark.tpPrice : candle.low <= mark.tpPrice;
-          if (hitStop || hitTarget) {
-            replayStopped = true;
-            setTradeResult(hitStop ? "stop-loss" : "take-profit");
-            return { ...mark, triggerIndex: i };
+      if (mark.orderType === "market" && mark.triggerIndex !== undefined) {
+        // Keep the position's right edge at its original 20-candle width,
+        // then extend it with each newly revealed candle until the trade closes.
+        const initialRightIndex = Math.min(mark.triggerIndex + 20, candles.length - 1);
+        const initialRightTime = Number(candles[initialRightIndex]?.time ?? mark.b.time);
+        const currentRightTime = nextIndex > mark.triggerIndex + 20
+          ? Number(lastCandle.time)
+          : initialRightTime;
+        if (pendingReviewId !== mark.id) {
+          const first = Math.max(mark.triggerIndex + 1, 0);
+          for (let i = first; i <= nextIndex; i += 1) {
+            const candle = candles[i];
+            if (!candle) continue;
+            const hitStop = isLong ? candle.low <= mark.b.price : candle.high >= mark.b.price;
+            const hitTarget = isLong ? candle.high >= mark.tpPrice : candle.low <= mark.tpPrice;
+            if (hitStop || hitTarget) {
+              replayStopped = true;
+              setTradeResult(hitStop ? "stop-loss" : "take-profit");
+              return {
+                ...mark,
+                b: { ...mark.b, time: Number(candle.time) },
+                triggerIndex: i,
+              };
+            }
           }
         }
+        return { ...mark, b: { ...mark.b, time: currentRightTime } };
       }
       return mark;
     });
