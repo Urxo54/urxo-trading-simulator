@@ -91,6 +91,7 @@ export default function TrainingPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [pendingReviewId, setPendingReviewId] = useState<number | null>(null);
   const [pendingIdeaPromptId, setPendingIdeaPromptId] = useState<number | null>(null);
+  const [pendingCancelledPrompt, setPendingCancelledPrompt] = useState(false);
   const [reviewTakeProfit, setReviewTakeProfit] = useState("");
   const [reviewStopLoss, setReviewStopLoss] = useState("");
   const [tradeResult, setTradeResult] = useState<"take-profit" | "stop-loss" | null>(null);
@@ -990,6 +991,7 @@ export default function TrainingPage() {
     setSelectedMarkId(null);
     setPendingIdeaPromptId(null);
     setIsPlaying(false);
+    setPendingCancelledPrompt(true);
   };
 
   const skipCurrentChart = () => {
@@ -1319,6 +1321,21 @@ export default function TrainingPage() {
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <button onClick={continuePendingIdea} className="flex-1 rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Продолжить</button>
               <button onClick={cancelPendingIdea} className="flex-1 rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Не актуально</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingCancelledPrompt && !reviewMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#111111] p-7 text-center shadow-2xl">
+            <p className="text-[10px] font-semibold tracking-[0.2em] text-zinc-500">TRAINING · NEXT STEP</p>
+            <h3 className="mt-2 text-xl font-semibold">Лимитный ордер отменён</h3>
+            <p className="mt-2 text-sm text-zinc-400">Вы можете продолжить тренировку на этом активе или открыть новый график.</p>
+            <div className="mt-6 flex flex-col gap-2">
+              <button onClick={() => setPendingCancelledPrompt(false)} className="w-full rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Продолжить на этом активе</button>
+              <button onClick={() => window.location.assign("/training")} className="w-full rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Открыть новый график</button>
+              <Link href="/" className="w-full rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-400 hover:bg-white/10">В меню</Link>
             </div>
           </div>
         </div>
