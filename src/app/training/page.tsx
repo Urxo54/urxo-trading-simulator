@@ -1285,7 +1285,6 @@ export default function TrainingPage() {
                 }
               }} className="flex-1 rounded-lg border border-white/20 px-4 py-3 text-xs font-semibold text-white hover:bg-white/10">Проанализировать</button>
               <button onClick={() => window.location.assign("/training")} className="flex-1 rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Следующий график</button>
-              <Link href="/" className="flex-1 rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">В дашборд</Link>
               <Link href="/" className="flex-1 rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Главное меню</Link>
             </div>
           </div>
