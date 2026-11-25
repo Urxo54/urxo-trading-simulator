@@ -328,16 +328,18 @@ export default function TrainingPage() {
         const raw = window.sessionStorage.getItem("urxo-trade-review");
         const snapshot = raw ? JSON.parse(raw) as ReviewSnapshot : null;
         if (snapshot && snapshot.instrument in instrumentDetails && snapshot.timeframe) {
-          reviewRestoreRef.current = snapshot;
-          sessionTimeRef.current = snapshot.sessionTime;
-          setInstrument(snapshot.instrument);
-          setTimeframe(snapshot.timeframe);
-          setSessionTime(snapshot.sessionTime);
-          setMarks(snapshot.marks);
-          setTradeResult(snapshot.tradeResult);
-          setReviewMode(true);
-          setSessionReady(true);
-          return;
+          const frame = window.requestAnimationFrame(() => {
+            reviewRestoreRef.current = snapshot;
+            sessionTimeRef.current = snapshot.sessionTime;
+            setInstrument(snapshot.instrument);
+            setTimeframe(snapshot.timeframe);
+            setSessionTime(snapshot.sessionTime);
+            setMarks(snapshot.marks);
+            setTradeResult(snapshot.tradeResult);
+            setReviewMode(true);
+            setSessionReady(true);
+          });
+          return () => window.cancelAnimationFrame(frame);
         }
       } catch {
         window.sessionStorage.removeItem("urxo-trade-review");
@@ -547,32 +549,12 @@ export default function TrainingPage() {
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [hasData]);
+  }, [hasData, currentIndex]);
 
   useEffect(() => {
     if (!chartReady || !sessionReady || !seriesRef.current || !chartRef.current) return;
 
     const controller = new AbortController();
-    setLoading(true);
-    setHasData(false);
-    setError("");
-    setCandleCount(0);
-    setLastPrice("—");
-    setCurrentIndex(0);
-    setTotalCandles(0);
-    setCurrentReplayTime(null);
-    setIsPlaying(false);
-    setPendingReviewId(null);
-    setPendingIdeaPromptId(null);
-    if (!reviewMode) setTradeResult(null);
-    setPendingPoint(null);
-    setPreviewPoint(null);
-    setSelectedMarkId(null);
-    dragRef.current = null;
-    setDrawingTool("cursor");
-    allCandlesRef.current = [];
-    replayIndexRef.current = -1;
-    seriesRef.current.setData([]);
 
     async function loadHistoricalData() {
       try {
@@ -663,8 +645,33 @@ export default function TrainingPage() {
       }
     }
 
-    void loadHistoricalData();
-    return () => controller.abort();
+    const resetFrame = window.requestAnimationFrame(() => {
+      setLoading(true);
+      setHasData(false);
+      setError("");
+      setCandleCount(0);
+      setLastPrice("—");
+      setCurrentIndex(0);
+      setTotalCandles(0);
+      setCurrentReplayTime(null);
+      setIsPlaying(false);
+      setPendingReviewId(null);
+      setPendingIdeaPromptId(null);
+      if (!reviewMode) setTradeResult(null);
+      setPendingPoint(null);
+      setPreviewPoint(null);
+      setSelectedMarkId(null);
+      dragRef.current = null;
+      setDrawingTool("cursor");
+      allCandlesRef.current = [];
+      replayIndexRef.current = -1;
+      seriesRef.current?.setData([]);
+      void loadHistoricalData();
+    });
+    return () => {
+      window.cancelAnimationFrame(resetFrame);
+      controller.abort();
+    };
   }, [chartReady, sessionReady, instrument, timeframe, selectedInstrument.decimals, retryCount, reviewMode]);
 
   useEffect(() => { drawingPrimitiveRequestRef.current?.(); }, [marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, currentIndex, timeframe, instrument]);
@@ -1041,7 +1048,7 @@ export default function TrainingPage() {
 
   const skipCurrentChart = () => {
     setIsPlaying(false);
-    window.location.assign("/training");
+    router.push("/training");
   };
 
   const toolButton = (tool: DrawingTool, label: string, Icon: typeof MousePointer2) => (
@@ -1316,7 +1323,7 @@ export default function TrainingPage() {
             </div>
           </div>
         </section>}
-        {reviewMode && <section className="mt-4 rounded-2xl border border-white/[0.08] bg-[#0c0c0c] p-5"><p className="text-xs font-semibold tracking-wider text-zinc-400">РЕЗУЛЬТАТ СДЕЛКИ</p><p className="mt-2 text-lg font-semibold">{tradeResult === "take-profit" ? "Take Profit достигнут" : "Сделка закрыта по Stop Loss"}</p><p className="mt-1 text-xs text-zinc-500">Можно менять масштаб, прокручивать график и переключать таймфреймы. Создание и редактирование пометок отключено.</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => window.location.assign("/training")} className="rounded-lg border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 hover:bg-white/10">Новая тренировка</button><Link href="/" className="rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-zinc-200">В дашборд</Link></div></section>}
+        {reviewMode && <section className="mt-4 rounded-2xl border border-white/[0.08] bg-[#0c0c0c] p-5"><p className="text-xs font-semibold tracking-wider text-zinc-400">РЕЗУЛЬТАТ СДЕЛКИ</p><p className="mt-2 text-lg font-semibold">{tradeResult === "take-profit" ? "Take Profit достигнут" : "Сделка закрыта по Stop Loss"}</p><p className="mt-1 text-xs text-zinc-500">Можно менять масштаб, прокручивать график и переключать таймфреймы. Создание и редактирование пометок отключено.</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => router.push("/training")} className="rounded-lg border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 hover:bg-white/10">Новая тренировка</button><Link href="/" className="rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-zinc-200">В дашборд</Link></div></section>}
         {!reviewMode && <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
           {[
             { label: "Instrument", value: selectedInstrument.label },
@@ -1379,7 +1386,7 @@ export default function TrainingPage() {
             <p className="mt-2 text-sm text-zinc-400">Вы можете продолжить тренировку на этом активе или открыть новый график.</p>
             <div className="mt-6 flex flex-col gap-2">
               <button onClick={() => setPendingCancelledPrompt(false)} className="w-full rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Продолжить на этом активе</button>
-              <button onClick={() => window.location.assign("/training")} className="w-full rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Открыть новый график</button>
+              <button onClick={() => router.push("/training")} className="w-full rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Открыть новый график</button>
               <Link href="/" className="w-full rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-400 hover:bg-white/10">В меню</Link>
             </div>
           </div>
@@ -1398,10 +1405,10 @@ export default function TrainingPage() {
                 if (sessionTime !== null && currentReplayTime !== null) {
                   const snapshot: ReviewSnapshot = { instrument, timeframe, sessionTime, currentReplayTime, marks, tradeResult };
                   window.sessionStorage.setItem("urxo-trade-review", JSON.stringify(snapshot));
-                  window.location.assign("/training?mode=review");
+                  router.push("/training?mode=review");
                 }
               }} className="flex-1 rounded-lg border border-white/20 px-4 py-3 text-xs font-semibold text-white hover:bg-white/10">Проанализировать</button>
-              <button onClick={() => window.location.assign("/training")} className="flex-1 rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Следующий график</button>
+              <button onClick={() => router.push("/training")} className="flex-1 rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Следующий график</button>
               <Link href="/" className="flex-1 rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Главное меню</Link>
             </div>
           </div>
