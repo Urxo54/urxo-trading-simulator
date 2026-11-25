@@ -90,6 +90,7 @@ export default function TrainingPage() {
   const [totalCandles, setTotalCandles] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [pendingReviewId, setPendingReviewId] = useState<number | null>(null);
+  const [pendingIdeaPromptId, setPendingIdeaPromptId] = useState<number | null>(null);
   const [reviewTakeProfit, setReviewTakeProfit] = useState("");
   const [reviewStopLoss, setReviewStopLoss] = useState("");
   const [tradeResult, setTradeResult] = useState<"take-profit" | "stop-loss" | null>(null);
@@ -516,6 +517,7 @@ export default function TrainingPage() {
     setCurrentReplayTime(null);
     setIsPlaying(false);
     setPendingReviewId(null);
+    setPendingIdeaPromptId(null);
     if (!reviewMode) setTradeResult(null);
     setPendingPoint(null);
     setPreviewPoint(null);
@@ -977,10 +979,47 @@ export default function TrainingPage() {
 
   const continueAfterReview = () => { setPendingReviewId(null); setIsPlaying(true); };
 
+  const continuePendingIdea = () => {
+    setPendingIdeaPromptId(null);
+    setIsPlaying(true);
+  };
+
+  const cancelPendingIdea = () => {
+    if (pendingIdeaPromptId === null) return;
+    setMarks((current) => current.filter((mark) => mark.id !== pendingIdeaPromptId));
+    setSelectedMarkId(null);
+    setPendingIdeaPromptId(null);
+    setIsPlaying(false);
+  };
+
+  const skipCurrentChart = () => {
+    setIsPlaying(false);
+    window.location.assign("/training");
+  };
+
   const toolButton = (tool: DrawingTool, label: string, Icon: typeof MousePointer2) => (
     <button key={tool} type="button" title={label} aria-label={label} onClick={() => {setDrawingTool(tool);setPendingPoint(null);setPreviewPoint(null);dragRef.current=null;}}
       className={`rounded-lg border p-2 transition ${drawingTool===tool?"border-white bg-white text-black":"border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"}`}><Icon size={16}/></button>
   );
+
+  useEffect(() => {
+    const pendingOrder = marks.find((mark) =>
+      (mark.type === "long" || mark.type === "short") && mark.orderType === "pending"
+    );
+    if (!pendingOrder || reviewMode || pendingReviewId !== null || pendingIdeaPromptId !== null || tradeResult !== null) return;
+
+    const timeout = window.setTimeout(() => {
+      const stillPending = marks.some((mark) => mark.id === pendingOrder.id &&
+        (mark.type === "long" || mark.type === "short") && mark.orderType === "pending"
+      );
+      if (stillPending) {
+        setIsPlaying(false);
+        setPendingIdeaPromptId(pendingOrder.id);
+      }
+    }, 5000);
+
+    return () => window.clearTimeout(timeout);
+  }, [marks, reviewMode, pendingReviewId, pendingIdeaPromptId, tradeResult]);
 
   useEffect(() => {
     if (!isPlaying || !hasData) return;
@@ -1174,6 +1213,13 @@ export default function TrainingPage() {
               className="rounded-lg bg-white px-4 py-2 text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
             >{isPlaying ? <Pause size={17} /> : <Play size={17} />}</button>
             <button
+              type="button"
+              title="Пропустить график"
+              onClick={skipCurrentChart}
+              disabled={!hasData || loading || reviewMode}
+              className="ml-auto inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+            >Skip <SkipForward size={15} /></button>
+            <button
               aria-label="Следующая свеча"
               title="Следующая свеча"
               disabled={!hasData || currentIndex >= totalCandles - 1}
@@ -1264,6 +1310,20 @@ export default function TrainingPage() {
             <div className="mt-6 flex flex-wrap justify-end gap-2">
               <button onClick={continueAfterReview} className="rounded-lg border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 hover:bg-white/10">Нет, продолжить</button>
               <button onClick={confirmPendingReview} className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-black hover:bg-zinc-200">Да, изменить</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingIdeaPromptId !== null && pendingReviewId === null && tradeResult === null && !reviewMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#111111] p-7 text-center shadow-2xl">
+            <p className="text-[10px] font-semibold tracking-[0.2em] text-zinc-500">PENDING ORDER · CHECK-IN</p>
+            <h3 className="mt-2 text-xl font-semibold">Ваша идея ещё актуальна?</h3>
+            <p className="mt-2 text-sm text-zinc-400">Цена пока не дошла до уровня входа. Продолжить ожидание лимитного ордера?</p>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <button onClick={continuePendingIdea} className="flex-1 rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Продолжить</button>
+              <button onClick={cancelPendingIdea} className="flex-1 rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Не актуально</button>
             </div>
           </div>
         </div>
