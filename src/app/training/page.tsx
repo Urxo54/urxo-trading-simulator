@@ -250,7 +250,18 @@ export default function TrainingPage() {
             setPendingReviewId(mark.id);
             setReviewTakeProfit(String(mark.tpPrice));
             setReviewStopLoss(String(mark.b.price));
-            return { ...mark, orderType: "market", triggerIndex: i };
+            // Re-anchor the position box at the actual fill candle. A pending
+            // order may wait longer than its original drawing width, which
+            // would otherwise leave the whole active position behind the chart.
+            const intervalSeconds = timeframe === "MN1" ? 2592000 : timeframe === "W1" ? 604800 : timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600;
+            const fillTime = Number(candle.time);
+            return {
+              ...mark,
+              a: { ...mark.a, time: fillTime },
+              b: { ...mark.b, time: fillTime + intervalSeconds * 20 },
+              orderType: "market",
+              triggerIndex: i,
+            };
           }
         }
         return mark;
@@ -273,7 +284,7 @@ export default function TrainingPage() {
     });
     setMarks(nextMarks);
     if (replayStopped) setIsPlaying(false);
-  }, [selectedInstrument.decimals, marks, pendingReviewId]);
+  }, [selectedInstrument.decimals, marks, pendingReviewId, timeframe]);
 
   // Restore a completed trade when opening analysis mode.
   useEffect(() => {
