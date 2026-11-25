@@ -516,7 +516,7 @@ export default function TrainingPage() {
     setCurrentReplayTime(null);
     setIsPlaying(false);
     setPendingReviewId(null);
-    setTradeResult(null);
+    if (!reviewMode) setTradeResult(null);
     setPendingPoint(null);
     setPreviewPoint(null);
     setSelectedMarkId(null);
