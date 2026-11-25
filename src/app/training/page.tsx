@@ -925,6 +925,7 @@ export default function TrainingPage() {
       tpPrice: entry + (isLong ? risk : -risk),
       orderType,
       createdIndex: currentIndex,
+      triggerIndex: orderType === "market" ? currentIndex : undefined,
     };
     setMarks((current) => [...current, mark]);
     setSelectedMarkId(id);
@@ -946,7 +947,7 @@ export default function TrainingPage() {
     setPendingReviewId(null);
   };
 
-  const continueAfterReview = () => setPendingReviewId(null);
+  const continueAfterReview = () => { setPendingReviewId(null); setIsPlaying(true); };
 
   const toolButton = (tool: DrawingTool, label: string, Icon: typeof MousePointer2) => (
     <button key={tool} type="button" title={label} aria-label={label} onClick={() => {setDrawingTool(tool);setPendingPoint(null);setPreviewPoint(null);dragRef.current=null;}}
@@ -1133,7 +1134,7 @@ export default function TrainingPage() {
                 if (pendingReviewId !== null || tradeResult !== null) return;
                 const hasOrder = marks.some((mark) =>
                   (mark.type === "long" || mark.type === "short") &&
-                  (mark.orderType === "pending" || (mark.orderType === "market" && mark.triggerIndex !== undefined))
+                  (mark.orderType === "pending" || mark.orderType === "market")
                 );
                 if (!hasOrder) {
                   window.alert("Сначала выставь позицию или лимитный ордер, затем запускай воспроизведение.");
