@@ -64,12 +64,16 @@ type HistoricalResponse = {
   error?: string;
 };
 
+type ReviewSnapshot = { instrument: Instrument; timeframe: Timeframe; sessionTime: number; currentReplayTime: number; marks: ChartMark[]; tradeResult: "take-profit" | "stop-loss" };
+
 export default function TrainingPage() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
 
   const [instrument, setInstrument] = useState<Instrument>("eurusd");
+  const [reviewMode, setReviewMode] = useState(false);
+  const reviewRestoreRef = useRef<ReviewSnapshot | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionTime, setSessionTime] = useState<number | null>(null);
   const sessionTimeRef = useRef<number | null>(null);
@@ -269,9 +273,29 @@ export default function TrainingPage() {
     if (replayStopped) setIsPlaying(false);
   }, [selectedInstrument.decimals, marks, pendingReviewId]);
 
-  // Pick a random market once when a new training page is opened.
-  // The state changes only on the client, so the server and first client render match.
+  // Restore a completed trade when opening analysis mode.
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mode") === "review") {
+      try {
+        const raw = window.sessionStorage.getItem("urxo-trade-review");
+        const snapshot = raw ? JSON.parse(raw) as ReviewSnapshot : null;
+        if (snapshot && snapshot.instrument in instrumentDetails && snapshot.timeframe) {
+          reviewRestoreRef.current = snapshot;
+          sessionTimeRef.current = snapshot.sessionTime;
+          setInstrument(snapshot.instrument);
+          setTimeframe(snapshot.timeframe);
+          setSessionTime(snapshot.sessionTime);
+          setMarks(snapshot.marks);
+          setTradeResult(snapshot.tradeResult);
+          setReviewMode(true);
+          setSessionReady(true);
+          return;
+        }
+      } catch {
+        window.sessionStorage.removeItem("urxo-trade-review");
+      }
+    }
     const frame = window.requestAnimationFrame(() => {
       const markets = Object.keys(instrumentDetails) as Instrument[];
       const randomMarket = markets[Math.floor(Math.random() * markets.length)];
