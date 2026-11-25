@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { findFirstPriceTouch, findFirstTradeExit, positionRightEdgeIndex } from "@/lib/trading-replay";
 import {
   CandlestickSeries,
   ColorType,
@@ -192,29 +193,28 @@ export default function TrainingPage() {
 
       if (mark.orderType === "pending" && mark.triggerIndex === undefined) {
         const first = Math.max((mark.createdIndex ?? 0) + 1, 0);
-        for (let i = first; i <= requestedIndex && i < candles.length; i += 1) {
-          const candle = candles[i];
-          if (!candle || candle.low > mark.a.price || candle.high < mark.a.price) continue;
-          nextIndex = Math.min(nextIndex, i);
-          replayStopped = true;
-          setPendingReviewId(mark.id);
-          setReviewTakeProfit(String(mark.tpPrice));
-          setReviewStopLoss(String(mark.b.price));
-          const fillTime = Number(candle.time);
-          const initialRightIndex = Math.min(i + 20, candles.length - 1);
-          const initialRightTime = Number(candles[initialRightIndex]?.time ?? fillTime);
-          return {
-            ...mark,
-            pendingOriginalA: mark.pendingOriginalA ?? mark.a,
-            pendingOriginalB: mark.pendingOriginalB ?? mark.b,
-            a: { ...mark.a, time: fillTime },
-            b: { ...mark.b, time: initialRightTime },
-            orderType: "market" as const,
-            triggerIndex: i,
-            closedIndex: undefined,
-          };
-        }
-        return mark;
+        const fillIndex = findFirstPriceTouch(candles, mark.a.price, first, requestedIndex);
+        if (fillIndex === null) return mark;
+        const fillCandle = candles[fillIndex];
+        if (!fillCandle) return mark;
+        nextIndex = Math.min(nextIndex, fillIndex);
+        replayStopped = true;
+        setPendingReviewId(mark.id);
+        setReviewTakeProfit(String(mark.tpPrice));
+        setReviewStopLoss(String(mark.b.price));
+        const fillTime = Number(fillCandle.time);
+        const rightIndex = positionRightEdgeIndex(fillIndex, fillIndex, candles.length);
+        const initialRightTime = Number(candles[rightIndex]?.time ?? fillTime);
+        return {
+          ...mark,
+          pendingOriginalA: mark.pendingOriginalA ?? mark.a,
+          pendingOriginalB: mark.pendingOriginalB ?? mark.b,
+          a: { ...mark.a, time: fillTime },
+          b: { ...mark.b, time: initialRightTime },
+          orderType: "market" as const,
+          triggerIndex: fillIndex,
+          closedIndex: undefined,
+        };
       }
 
       if (mark.orderType === "market" && mark.triggerIndex !== undefined) {
@@ -225,30 +225,25 @@ export default function TrainingPage() {
             : mark;
         }
 
-        for (let i = mark.triggerIndex + 1; i <= requestedIndex && i < candles.length; i += 1) {
-          const candle = candles[i];
-          if (!candle) continue;
-          const hitStop = isLong ? candle.low <= mark.b.price : candle.high >= mark.b.price;
-          const hitTarget = isLong ? candle.high >= mark.tpPrice : candle.low <= mark.tpPrice;
-          if (hitStop || hitTarget) {
-            nextIndex = Math.min(nextIndex, i);
-            replayStopped = true;
-            setTradeResult(hitStop ? "stop-loss" : "take-profit");
-            return {
-              ...mark,
-              b: { ...mark.b, time: Number(candle.time) },
-              closedIndex: i,
-            };
-          }
+        const exit = findFirstTradeExit(candles, {
+          isLong,
+          stopLoss: mark.b.price,
+          takeProfit: mark.tpPrice,
+        }, mark.triggerIndex + 1, requestedIndex);
+        if (exit) {
+          nextIndex = Math.min(nextIndex, exit.index);
+          replayStopped = true;
+          setTradeResult(exit.result);
+          const exitCandle = candles[exit.index];
+          return {
+            ...mark,
+            b: { ...mark.b, time: Number(exitCandle.time) },
+            closedIndex: exit.index,
+          };
         }
-
-        const initialRightIndex = Math.min(mark.triggerIndex + 20, candles.length - 1);
-        const initialRightTime = Number(candles[initialRightIndex]?.time ?? mark.b.time);
-        const lastVisibleCandle = candles[nextIndex];
-        const currentRightTime = nextIndex > mark.triggerIndex + 20
-          ? Number(lastVisibleCandle?.time ?? initialRightTime)
-          : initialRightTime;
-        return { ...mark, b: { ...mark.b, time: currentRightTime } };
+        const rightIndex = positionRightEdgeIndex(mark.triggerIndex, nextIndex, candles.length);
+        const rightTime = Number(candles[rightIndex]?.time ?? mark.b.time);
+        return { ...mark, b: { ...mark.b, time: rightTime } };
       }
       return mark;
     });
@@ -542,14 +537,15 @@ export default function TrainingPage() {
         height: 520,
       });
       chart.priceScale("right").applyOptions({ autoScale: true });
+      const replayIndex = replayIndexRef.current;
       chart.timeScale().setVisibleLogicalRange({
-        from: Math.max(-1, currentIndex - 70),
-        to: currentIndex + 30,
+        from: Math.max(-1, replayIndex - 70),
+        to: replayIndex + 30,
       });
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [hasData, currentIndex]);
+  }, [hasData]);
 
   useEffect(() => {
     if (!chartReady || !sessionReady || !seriesRef.current || !chartRef.current) return;
