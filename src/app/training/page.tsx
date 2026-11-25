@@ -1002,24 +1002,22 @@ export default function TrainingPage() {
       className={`rounded-lg border p-2 transition ${drawingTool===tool?"border-white bg-white text-black":"border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"}`}><Icon size={16}/></button>
   );
 
-  useEffect(() => {
-    const pendingOrder = marks.find((mark) =>
-      (mark.type === "long" || mark.type === "short") && mark.orderType === "pending"
-    );
-    if (!pendingOrder || reviewMode || pendingReviewId !== null || pendingIdeaPromptId !== null || tradeResult !== null) return;
+  const pendingOrderId = marks.find((mark) =>
+    (mark.type === "long" || mark.type === "short") && mark.orderType === "pending"
+  )?.id ?? null;
 
+  useEffect(() => {
+    if (pendingOrderId === null || reviewMode || pendingReviewId !== null || pendingIdeaPromptId !== null || tradeResult !== null) return;
+
+    // Depend on the pending order identity, not the whole marks array:
+    // replay updates marks on every candle and must not reset this 5-second timer.
     const timeout = window.setTimeout(() => {
-      const stillPending = marks.some((mark) => mark.id === pendingOrder.id &&
-        (mark.type === "long" || mark.type === "short") && mark.orderType === "pending"
-      );
-      if (stillPending) {
-        setIsPlaying(false);
-        setPendingIdeaPromptId(pendingOrder.id);
-      }
+      setIsPlaying(false);
+      setPendingIdeaPromptId(pendingOrderId);
     }, 5000);
 
     return () => window.clearTimeout(timeout);
-  }, [marks, reviewMode, pendingReviewId, pendingIdeaPromptId, tradeResult]);
+  }, [pendingOrderId, reviewMode, pendingReviewId, pendingIdeaPromptId, tradeResult]);
 
   useEffect(() => {
     if (!isPlaying || !hasData) return;
