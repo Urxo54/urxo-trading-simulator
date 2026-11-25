@@ -85,6 +85,10 @@ export default function TrainingPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [totalCandles, setTotalCandles] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [pendingReviewId, setPendingReviewId] = useState<number | null>(null);
+  const [reviewTakeProfit, setReviewTakeProfit] = useState("");
+  const [reviewStopLoss, setReviewStopLoss] = useState("");
+  const [tradeResult, setTradeResult] = useState<"take-profit" | "stop-loss" | null>(null);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [currentReplayTime, setCurrentReplayTime] = useState<number | null>(null);
   const allCandlesRef = useRef<CandlestickData<Time>[]>([]);
@@ -224,23 +228,46 @@ export default function TrainingPage() {
     setCandleCount(visibleCandles.length);
     setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
     setCurrentReplayTime(Number(lastCandle.time));
-    setMarks((current) => current.map((mark) => {
+    let replayStopped = false;
+    const nextMarks = marks.map((mark) => {
       if ((mark.type !== "long" && mark.type !== "short") || !mark.orderType) return mark;
-      if (mark.orderType === "market" && mark.triggerIndex === undefined) return mark;
+      const isLong = mark.type === "long";
       if (mark.triggerIndex !== undefined && nextIndex < mark.triggerIndex) {
         return { ...mark, orderType: "pending", triggerIndex: undefined };
       }
-      if (mark.triggerIndex !== undefined) return mark;
-      const first = Math.max((mark.createdIndex ?? nextIndex) + 1, 0);
-      for (let i = first; i <= nextIndex; i += 1) {
-        const candle = candles[i];
-        if (candle && candle.low <= mark.a.price && candle.high >= mark.a.price) {
-          return { ...mark, orderType: "market", triggerIndex: i };
+      if (mark.orderType === "pending" && mark.triggerIndex === undefined) {
+        const first = Math.max((mark.createdIndex ?? nextIndex) + 1, 0);
+        for (let i = first; i <= nextIndex; i += 1) {
+          const candle = candles[i];
+          if (candle && candle.low <= mark.a.price && candle.high >= mark.a.price) {
+            replayStopped = true;
+            setPendingReviewId(mark.id);
+            setReviewTakeProfit(String(mark.tpPrice));
+            setReviewStopLoss(String(mark.b.price));
+            return { ...mark, orderType: "market", triggerIndex: i };
+          }
+        }
+        return mark;
+      }
+      if (mark.orderType === "market" && mark.triggerIndex !== undefined && pendingReviewId !== mark.id) {
+        const first = Math.max(mark.triggerIndex + 1, 0);
+        for (let i = first; i <= nextIndex; i += 1) {
+          const candle = candles[i];
+          if (!candle) continue;
+          const hitStop = isLong ? candle.low <= mark.b.price : candle.high >= mark.b.price;
+          const hitTarget = isLong ? candle.high >= mark.tpPrice : candle.low <= mark.tpPrice;
+          if (hitStop || hitTarget) {
+            replayStopped = true;
+            setTradeResult(hitStop ? "stop-loss" : "take-profit");
+            return { ...mark, triggerIndex: i };
+          }
         }
       }
       return mark;
-    }));
-  }, [selectedInstrument.decimals]);
+    });
+    setMarks(nextMarks);
+    if (replayStopped) setIsPlaying(false);
+  }, [selectedInstrument.decimals, marks, pendingReviewId]);
 
   // Pick a random market once when a new training page is opened.
   // The state changes only on the client, so the server and first client render match.
@@ -464,6 +491,8 @@ export default function TrainingPage() {
     setTotalCandles(0);
     setCurrentReplayTime(null);
     setIsPlaying(false);
+    setPendingReviewId(null);
+    setTradeResult(null);
     setPendingPoint(null);
     setPreviewPoint(null);
     setSelectedMarkId(null);
@@ -904,6 +933,21 @@ export default function TrainingPage() {
     setPreviewPoint(null);
   };
 
+  const confirmPendingReview = () => {
+    if (pendingReviewId === null) return;
+    const tp = Number(reviewTakeProfit);
+    const sl = Number(reviewStopLoss);
+    if (!Number.isFinite(tp) || !Number.isFinite(sl)) return;
+    setMarks((current) => current.map((mark) =>
+      mark.id === pendingReviewId && (mark.type === "long" || mark.type === "short")
+        ? { ...mark, tpPrice: tp, b: { ...mark.b, price: sl } }
+        : mark
+    ));
+    setPendingReviewId(null);
+  };
+
+  const continueAfterReview = () => setPendingReviewId(null);
+
   const toolButton = (tool: DrawingTool, label: string, Icon: typeof MousePointer2) => (
     <button key={tool} type="button" title={label} aria-label={label} onClick={() => {setDrawingTool(tool);setPendingPoint(null);setPreviewPoint(null);dragRef.current=null;}}
       className={`rounded-lg border p-2 transition ${drawingTool===tool?"border-white bg-white text-black":"border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"}`}><Icon size={16}/></button>
@@ -1084,7 +1128,19 @@ export default function TrainingPage() {
               aria-label={isPlaying ? "Пауза" : "Воспроизвести"}
               title={isPlaying ? "Пауза" : "Воспроизвести"}
               disabled={!hasData || currentIndex >= totalCandles - 1}
-              onClick={() => setIsPlaying((value) => !value)}
+              onClick={() => {
+                if (isPlaying) { setIsPlaying(false); return; }
+                if (pendingReviewId !== null || tradeResult !== null) return;
+                const hasOrder = marks.some((mark) =>
+                  (mark.type === "long" || mark.type === "short") &&
+                  (mark.orderType === "pending" || (mark.orderType === "market" && mark.triggerIndex !== undefined))
+                );
+                if (!hasOrder) {
+                  window.alert("Сначала выставь позицию или лимитный ордер, затем запускай воспроизведение.");
+                  return;
+                }
+                setIsPlaying(true);
+              }
               className="rounded-lg bg-white px-4 py-2 text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
             >{isPlaying ? <Pause size={17} /> : <Play size={17} />}</button>
             <button
@@ -1160,6 +1216,43 @@ export default function TrainingPage() {
           ))}
         </div>
       </div>
+
+      {pendingReviewId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#111111] p-6 shadow-2xl">
+            <p className="text-[10px] font-semibold tracking-[0.2em] text-zinc-500">LIMIT ORDER ACTIVATED</p>
+            <h3 className="mt-2 text-xl font-semibold">Лимитный ордер исполнен</h3>
+            <p className="mt-2 text-sm text-zinc-400">Цена дошла до точки входа. Хочешь изменить тейк-профит и стоп-лосс перед продолжением?</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <label className="text-xs text-zinc-400">Take Profit
+                <input value={reviewTakeProfit} onChange={(event) => setReviewTakeProfit(event.target.value)} inputMode="decimal" className="mt-2 w-full rounded-lg border border-white/15 bg-black px-3 py-2 text-sm text-white outline-none focus:border-white/50" />
+              </label>
+              <label className="text-xs text-zinc-400">Stop Loss
+                <input value={reviewStopLoss} onChange={(event) => setReviewStopLoss(event.target.value)} inputMode="decimal" className="mt-2 w-full rounded-lg border border-white/15 bg-black px-3 py-2 text-sm text-white outline-none focus:border-white/50" />
+              </label>
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button onClick={continueAfterReview} className="rounded-lg border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 hover:bg-white/10">Нет, продолжить</button>
+              <button onClick={confirmPendingReview} className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-black hover:bg-zinc-200">Да, изменить</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tradeResult !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#111111] p-7 text-center shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/20 text-xl">{tradeResult === "take-profit" ? "✓" : "×"}</div>
+            <p className="mt-4 text-[10px] font-semibold tracking-[0.2em] text-zinc-500">TRADE FINISHED</p>
+            <h3 className="mt-2 text-2xl font-semibold">{tradeResult === "take-profit" ? "Успешно!" : "Сработал стоп-лосс"}</h3>
+            <p className="mt-2 text-sm text-zinc-400">{tradeResult === "take-profit" ? "Тейк-профит достигнут. Отличная работа!" : "Сделка закрыта по стоп-лоссу. Можно разобрать ситуацию и попробовать ещё раз."}</p>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <button onClick={() => window.location.assign("/training")} className="flex-1 rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Следующий график</button>
+              <Link href="/" className="flex-1 rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Главное меню</Link>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
