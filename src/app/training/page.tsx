@@ -1024,7 +1024,7 @@ export default function TrainingPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="rounded-lg border border-white/10 px-3 py-2 text-[10px] tracking-wider text-zinc-400">HISTORICAL DATA</span>
+          <span className="rounded-lg border border-white/10 px-3 py-2 text-[10px] tracking-wider text-zinc-400">{reviewMode ? "TRADE ANALYSIS" : "HISTORICAL DATA"}</span>
           <button aria-label="Settings" className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10">
             <Settings2 size={17} />
           </button>
@@ -1034,8 +1034,8 @@ export default function TrainingPage() {
       <div className="mx-auto max-w-[1600px] p-4 md:p-7">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs text-zinc-500">Market / Historical Replay / {selectedInstrument.shortLabel}</p>
-            <h2 className="mt-1 text-xl font-semibold">{selectedInstrument.label}</h2>
+            <p className="text-xs text-zinc-500">Market / {reviewMode ? "Trade Analysis" : "Historical Replay"} / {selectedInstrument.shortLabel}</p>
+            <h2 className="mt-1 text-xl font-semibold">{reviewMode ? "Разбор завершённой сделки" : selectedInstrument.label}</h2>
           </div>
 
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#111111] p-1">
@@ -1064,7 +1064,7 @@ export default function TrainingPage() {
           </div>
 
           <div className="relative min-h-[520px] bg-[#080808]">
-            <div className="absolute left-3 top-3 z-20 flex flex-wrap gap-1 rounded-xl border border-white/10 bg-[#111111]/95 p-1.5 shadow-xl">
+            {!reviewMode && <div className="absolute left-3 top-3 z-20 flex flex-wrap gap-1 rounded-xl border border-white/10 bg-[#111111]/95 p-1.5 shadow-xl">
               {toolButton("cursor", "Курсор", MousePointer2)}
               {toolButton("line", "Линия (от точки до точки)", Minus)}
               {toolButton("rectangle", "Прямоугольник", Square)}
@@ -1084,8 +1084,9 @@ export default function TrainingPage() {
                 onClick={() => { setMarks([]); setPendingPoint(null); setPreviewPoint(null); setSelectedMarkId(null); }}
                 disabled={!marks.length && !pendingPoint}
                 className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:bg-white/10 disabled:opacity-30"><Trash2 size={16} /></button>
-            </div>
-            {drawingTool !== "cursor" && <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-lg border border-white/10 bg-[#111111]/90 px-3 py-2 text-[11px] text-zinc-300">{pendingPoint ? "Двигай мышь для размера · второй клик — зафиксировать (Shift — ровная линия)" : "Первый клик — начальная точка"}</div>}
+            </div>}
+            {reviewMode && <div className="absolute left-3 top-3 z-20 rounded-lg border border-white/10 bg-[#111111]/90 px-3 py-2 text-[10px] font-semibold tracking-wider text-zinc-300">РЕЖИМ АНАЛИЗА · РЕДАКТИРОВАНИЕ ОТКЛЮЧЕНО</div>}
+            {!reviewMode && drawingTool !== "cursor" && <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-lg border border-white/10 bg-[#111111]/90 px-3 py-2 text-[11px] text-zinc-300">{pendingPoint ? "Двигай мышь для размера · второй клик — зафиксировать (Shift — ровная линия)" : "Первый клик — начальная точка"}</div>}
             <div ref={chartContainerRef} onPointerDownCapture={handleChartPointerDown} onPointerMove={handleChartPointerMove} onPointerUp={handleChartPointerUp} onPointerCancel={handleChartPointerUp} className={`absolute inset-0 w-full transition-opacity ${hasData ? "opacity-100" : "pointer-events-none opacity-0"}`} />
             {loading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-[#080808]">
@@ -1120,7 +1121,7 @@ export default function TrainingPage() {
           </div>
         </section>
 
-        <section className="mt-4 rounded-2xl border border-white/[0.08] bg-[#0c0c0c] p-4 md:p-5">
+        {!reviewMode && <section className="mt-4 rounded-2xl border border-white/[0.08] bg-[#0c0c0c] p-4 md:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold tracking-wide text-white">HISTORICAL REPLAY</p>
@@ -1226,9 +1227,9 @@ export default function TrainingPage() {
               <span>Конец истории</span>
             </div>
           </div>
-        </section>
-
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
+        </section>}
+        {reviewMode && <section className="mt-4 rounded-2xl border border-white/[0.08] bg-[#0c0c0c] p-5"><p className="text-xs font-semibold tracking-wider text-zinc-400">РЕЗУЛЬТАТ СДЕЛКИ</p><p className="mt-2 text-lg font-semibold">{tradeResult === "take-profit" ? "Take Profit достигнут" : "Сделка закрыта по Stop Loss"}</p><p className="mt-1 text-xs text-zinc-500">Можно менять масштаб, прокручивать график и переключать таймфреймы. Создание и редактирование пометок отключено.</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => window.location.assign("/training")} className="rounded-lg border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 hover:bg-white/10">Новая тренировка</button><Link href="/" className="rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-zinc-200">В дашборд</Link></div></section>}
+        {!reviewMode && <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
           {[
             { label: "Instrument", value: selectedInstrument.label },
             { label: "Timeframe", value: timeframe },
@@ -1243,7 +1244,7 @@ export default function TrainingPage() {
               <p className="mt-2 text-sm font-semibold">{item.value}</p>
             </div>
           ))}
-        </div>
+        </div>}
       </div>
 
       {pendingReviewId !== null && (
