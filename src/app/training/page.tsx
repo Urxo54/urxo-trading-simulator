@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CandlestickSeries,
   ColorType,
@@ -10,6 +11,7 @@ import {
   type IChartApi,
   type ISeriesApi,
   type CandlestickData,
+  type Logical,
   type Time,
 } from "lightweight-charts";
 import {
@@ -43,7 +45,7 @@ type ChartPoint = { time: number; price: number };
 type ChartMark =
   | { id: number; type: "text"; a: ChartPoint; text?: string }
   | { id: number; type: "line" | "rectangle"; a: ChartPoint; b: ChartPoint }
-  | { id: number; type: "long" | "short"; a: ChartPoint; b: ChartPoint; tpPrice: number; orderType?: "market" | "pending"; createdIndex?: number; triggerIndex?: number };
+  | { id: number; type: "long" | "short"; a: ChartPoint; b: ChartPoint; tpPrice: number; orderType?: "market" | "pending"; createdIndex?: number; triggerIndex?: number; closedIndex?: number; pendingOriginalA?: ChartPoint; pendingOriginalB?: ChartPoint };
 
 const instrumentDetails: Record<
   Instrument,
@@ -67,6 +69,7 @@ type HistoricalResponse = {
 type ReviewSnapshot = { instrument: Instrument; timeframe: Timeframe; sessionTime: number; currentReplayTime: number; marks: ChartMark[]; tradeResult: "take-profit" | "stop-loss" };
 
 export default function TrainingPage() {
+  const router = useRouter();
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -109,8 +112,20 @@ export default function TrainingPage() {
   const [, setOverlayVersion] = useState(0);
   const nextMarkId = useRef(1);
   const drawingPrimitiveRequestRef = useRef<(() => void) | null>(null);
-  const drawingStateRef = useRef({ marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, candles: allCandlesRef.current, currentIndex, timeframeSeconds: 3600, decimals: 5 });
-  drawingStateRef.current = { marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, candles: allCandlesRef.current, currentIndex, timeframeSeconds: timeframe === "MN1" ? 2592000 : timeframe === "W1" ? 604800 : timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600, decimals: instrumentDetails[instrument].decimals };
+  const drawingStateRef = useRef({ marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, candles: [] as CandlestickData<Time>[], currentIndex, timeframeSeconds: 3600, decimals: 5 });
+  useEffect(() => {
+    drawingStateRef.current = {
+      marks,
+      selectedMarkId,
+      pendingPoint,
+      previewPoint,
+      drawingTool,
+      candles: allCandlesRef.current,
+      currentIndex,
+      timeframeSeconds: timeframe === "MN1" ? 2592000 : timeframe === "W1" ? 604800 : timeframe === "D1" ? 86400 : timeframe === "H4" ? 14400 : 3600,
+      decimals: instrumentDetails[instrument].decimals,
+    };
+  }, [marks, selectedMarkId, pendingPoint, previewPoint, drawingTool, currentIndex, timeframe, instrument]);
 
   const selectedInstrument = instrumentDetails[instrument];
   const sessionDateLabel = sessionTime === null
@@ -143,55 +158,129 @@ export default function TrainingPage() {
     const chart = chartRef.current;
     if (!candles.length || !series || !chart) return;
 
-    const nextIndex = Math.max(0, Math.min(requestedIndex, candles.length - 1));
+    let nextIndex = Math.max(0, Math.min(requestedIndex, candles.length - 1));
+    let replayStopped = false;
+    let closedTradeWasRewound = false;
+    let rewoundPendingId: number | null = null;
+
+    // Resolve the first trading event before revealing candles. This is
+    // important for slider jumps and fast-forward: no candle after a fill/exit
+    // may reach the chart in the same operation.
+    const nextMarks: ChartMark[] = marks.map((mark): ChartMark => {
+      if (mark.type !== "long" && mark.type !== "short") return mark;
+      if (!mark.orderType) return mark;
+      const isLong = mark.type === "long";
+
+      if (mark.triggerIndex !== undefined && nextIndex < mark.triggerIndex) {
+        rewoundPendingId = mark.id;
+        return {
+          ...mark,
+          a: mark.pendingOriginalA ?? mark.a,
+          b: mark.pendingOriginalB ?? mark.b,
+          orderType: "pending" as const,
+          triggerIndex: undefined,
+          closedIndex: undefined,
+          pendingOriginalA: undefined,
+          pendingOriginalB: undefined,
+        };
+      }
+
+      if (mark.closedIndex !== undefined && nextIndex < mark.closedIndex) {
+        closedTradeWasRewound = true;
+        return { ...mark, closedIndex: undefined };
+      }
+
+      if (mark.orderType === "pending" && mark.triggerIndex === undefined) {
+        const first = Math.max((mark.createdIndex ?? 0) + 1, 0);
+        for (let i = first; i <= requestedIndex && i < candles.length; i += 1) {
+          const candle = candles[i];
+          if (!candle || candle.low > mark.a.price || candle.high < mark.a.price) continue;
+          nextIndex = Math.min(nextIndex, i);
+          replayStopped = true;
+          setPendingReviewId(mark.id);
+          setReviewTakeProfit(String(mark.tpPrice));
+          setReviewStopLoss(String(mark.b.price));
+          const fillTime = Number(candle.time);
+          const initialRightIndex = Math.min(i + 20, candles.length - 1);
+          const initialRightTime = Number(candles[initialRightIndex]?.time ?? fillTime);
+          return {
+            ...mark,
+            pendingOriginalA: mark.pendingOriginalA ?? mark.a,
+            pendingOriginalB: mark.pendingOriginalB ?? mark.b,
+            a: { ...mark.a, time: fillTime },
+            b: { ...mark.b, time: initialRightTime },
+            orderType: "market" as const,
+            triggerIndex: i,
+            closedIndex: undefined,
+          };
+        }
+        return mark;
+      }
+
+      if (mark.orderType === "market" && mark.triggerIndex !== undefined) {
+        if (mark.closedIndex !== undefined) {
+          const closedCandle = candles[mark.closedIndex];
+          return closedCandle
+            ? { ...mark, b: { ...mark.b, time: Number(closedCandle.time) } }
+            : mark;
+        }
+
+        for (let i = mark.triggerIndex + 1; i <= requestedIndex && i < candles.length; i += 1) {
+          const candle = candles[i];
+          if (!candle) continue;
+          const hitStop = isLong ? candle.low <= mark.b.price : candle.high >= mark.b.price;
+          const hitTarget = isLong ? candle.high >= mark.tpPrice : candle.low <= mark.tpPrice;
+          if (hitStop || hitTarget) {
+            nextIndex = Math.min(nextIndex, i);
+            replayStopped = true;
+            setTradeResult(hitStop ? "stop-loss" : "take-profit");
+            return {
+              ...mark,
+              b: { ...mark.b, time: Number(candle.time) },
+              closedIndex: i,
+            };
+          }
+        }
+
+        const initialRightIndex = Math.min(mark.triggerIndex + 20, candles.length - 1);
+        const initialRightTime = Number(candles[initialRightIndex]?.time ?? mark.b.time);
+        const lastVisibleCandle = candles[nextIndex];
+        const currentRightTime = nextIndex > mark.triggerIndex + 20
+          ? Number(lastVisibleCandle?.time ?? initialRightTime)
+          : initialRightTime;
+        return { ...mark, b: { ...mark.b, time: currentRightTime } };
+      }
+      return mark;
+    });
+
+    if (rewoundPendingId !== null) {
+      setPendingReviewId((current) => current === rewoundPendingId ? null : current);
+      setReviewTakeProfit("");
+      setReviewStopLoss("");
+    }
+    if (closedTradeWasRewound) setTradeResult(null);
+
     const visibleCandles = candles.slice(0, nextIndex + 1);
     const lastCandle = visibleCandles[visibleCandles.length - 1];
-
     replayIndexRef.current = nextIndex;
     series.setData(visibleCandles);
-    // Preserve the user's current zoom (number of visible bars), while
-    // shifting that same-width window along with the newest revealed candle.
+
+    // Preserve the user's current zoom while moving the replay window.
     const timeScale = chart.timeScale();
     const visibleRange = timeScale.getVisibleLogicalRange();
-    const visibleWidth = visibleRange
-      ? visibleRange.to - visibleRange.from
-      : 100;
-    const safeWidth = Number.isFinite(visibleWidth) && visibleWidth > 1
-      ? visibleWidth
-      : 100;
+    const visibleWidth = visibleRange ? visibleRange.to - visibleRange.from : 100;
+    const safeWidth = Number.isFinite(visibleWidth) && visibleWidth > 1 ? visibleWidth : 100;
     const rightOffset = safeWidth * 0.3;
-    const targetRange = {
-      from: nextIndex - safeWidth + rightOffset,
-      to: nextIndex + rightOffset,
-    };
+    const targetRange = { from: nextIndex - safeWidth + rightOffset, to: nextIndex + rightOffset };
 
-    // Keep the latest price inside a comfortable central zone. Only recenter
-    // after it travels 25% of the visible price range away from the midpoint.
-    // This gives the candles room to move naturally before the chart follows.
     const priceScale = chart.priceScale("right");
     const currentPriceRange = priceScale.getVisibleRange();
-    const priceRangeHeight = currentPriceRange
-      ? currentPriceRange.to - currentPriceRange.from
-      : 0;
-    const safePriceHeight = Number.isFinite(priceRangeHeight) && priceRangeHeight > 0
-      ? priceRangeHeight
-      : 0;
-    const priceMidpoint = currentPriceRange
-      ? (currentPriceRange.from + currentPriceRange.to) / 2
-      : lastCandle.close;
-    const followThreshold = safePriceHeight * 0.25;
-    const shouldRecenter = Boolean(
-      currentPriceRange &&
-      safePriceHeight > 0 &&
-      Math.abs(lastCandle.close - priceMidpoint) >= followThreshold
-    );
+    const priceRangeHeight = currentPriceRange ? currentPriceRange.to - currentPriceRange.from : 0;
+    const safePriceHeight = Number.isFinite(priceRangeHeight) && priceRangeHeight > 0 ? priceRangeHeight : 0;
+    const priceMidpoint = currentPriceRange ? (currentPriceRange.from + currentPriceRange.to) / 2 : lastCandle.close;
+    const shouldRecenter = Boolean(currentPriceRange && safePriceHeight > 0 && Math.abs(lastCandle.close - priceMidpoint) >= safePriceHeight * 0.25);
     const priceShift = shouldRecenter ? lastCandle.close - priceMidpoint : 0;
-    const targetPriceRange = currentPriceRange
-      ? {
-          from: currentPriceRange.from + priceShift,
-          to: currentPriceRange.to + priceShift,
-        }
-      : null;
+    const targetPriceRange = currentPriceRange ? { from: currentPriceRange.from + priceShift, to: currentPriceRange.to + priceShift } : null;
 
     if (playbackAnimationRef.current !== null) {
       window.cancelAnimationFrame(playbackAnimationRef.current);
@@ -199,10 +288,7 @@ export default function TrainingPage() {
     }
     if (animationDuration > 0 && visibleRange && currentPriceRange) {
       const startRange = { from: visibleRange.from, to: visibleRange.to };
-      const startPriceRange = {
-        from: currentPriceRange.from,
-        to: currentPriceRange.to,
-      };
+      const startPriceRange = { from: currentPriceRange.from, to: currentPriceRange.to };
       let animationStart: number | null = null;
       const animate = (timestamp: number) => {
         if (animationStart === null) animationStart = timestamp;
@@ -217,89 +303,22 @@ export default function TrainingPage() {
             to: startPriceRange.to + (targetPriceRange.to - startPriceRange.to) * progress,
           });
         }
-        if (progress < 1) {
-          playbackAnimationRef.current = window.requestAnimationFrame(animate);
-        } else {
-          playbackAnimationRef.current = null;
-        }
+        if (progress < 1) playbackAnimationRef.current = window.requestAnimationFrame(animate);
+        else playbackAnimationRef.current = null;
       };
       playbackAnimationRef.current = window.requestAnimationFrame(animate);
     } else {
       timeScale.setVisibleLogicalRange(targetRange);
-      if (shouldRecenter && targetPriceRange) {
-        priceScale.setVisibleRange(targetPriceRange);
-      }
+      if (shouldRecenter && targetPriceRange) priceScale.setVisibleRange(targetPriceRange);
     }
+
     setCurrentIndex(nextIndex);
     setCandleCount(visibleCandles.length);
     setLastPrice(lastCandle.close.toFixed(selectedInstrument.decimals));
     setCurrentReplayTime(Number(lastCandle.time));
-    let replayStopped = false;
-    const nextMarks = marks.map((mark) => {
-      if ((mark.type !== "long" && mark.type !== "short") || !mark.orderType) return mark;
-      const isLong = mark.type === "long";
-      if (mark.triggerIndex !== undefined && nextIndex < mark.triggerIndex) {
-        return { ...mark, orderType: "pending", triggerIndex: undefined };
-      }
-      if (mark.orderType === "pending" && mark.triggerIndex === undefined) {
-        const first = Math.max((mark.createdIndex ?? nextIndex) + 1, 0);
-        for (let i = first; i <= nextIndex; i += 1) {
-          const candle = candles[i];
-          if (candle && candle.low <= mark.a.price && candle.high >= mark.a.price) {
-            replayStopped = true;
-            setPendingReviewId(mark.id);
-            setReviewTakeProfit(String(mark.tpPrice));
-            setReviewStopLoss(String(mark.b.price));
-            // Re-anchor the position box at the actual fill candle. A pending
-            // order may wait longer than its original drawing width, which
-            // would otherwise leave the whole active position behind the chart.
-            const fillTime = Number(candle.time);
-            const initialRightIndex = Math.min(i + 20, candles.length - 1);
-            const initialRightTime = Number(candles[initialRightIndex]?.time ?? fillTime);
-            return {
-              ...mark,
-              a: { ...mark.a, time: fillTime },
-              b: { ...mark.b, time: initialRightTime },
-              orderType: "market",
-              triggerIndex: i,
-            };
-          }
-        }
-        return mark;
-      }
-      if (mark.orderType === "market" && mark.triggerIndex !== undefined) {
-        // Keep the position's right edge at its original 20-candle width,
-        // then extend it with each newly revealed candle until the trade closes.
-        const initialRightIndex = Math.min(mark.triggerIndex + 20, candles.length - 1);
-        const initialRightTime = Number(candles[initialRightIndex]?.time ?? mark.b.time);
-        const currentRightTime = nextIndex > mark.triggerIndex + 20
-          ? Number(lastCandle.time)
-          : initialRightTime;
-        if (pendingReviewId !== mark.id) {
-          const first = Math.max(mark.triggerIndex + 1, 0);
-          for (let i = first; i <= nextIndex; i += 1) {
-            const candle = candles[i];
-            if (!candle) continue;
-            const hitStop = isLong ? candle.low <= mark.b.price : candle.high >= mark.b.price;
-            const hitTarget = isLong ? candle.high >= mark.tpPrice : candle.low <= mark.tpPrice;
-            if (hitStop || hitTarget) {
-              replayStopped = true;
-              setTradeResult(hitStop ? "stop-loss" : "take-profit");
-              return {
-                ...mark,
-                b: { ...mark.b, time: Number(candle.time) },
-                triggerIndex: i,
-              };
-            }
-          }
-        }
-        return { ...mark, b: { ...mark.b, time: currentRightTime } };
-      }
-      return mark;
-    });
     setMarks(nextMarks);
     if (replayStopped) setIsPlaying(false);
-  }, [selectedInstrument.decimals, marks, pendingReviewId, timeframe]);
+  }, [selectedInstrument.decimals, marks, pendingReviewId]);
 
   // Restore a completed trade when opening analysis mode.
   useEffect(() => {
@@ -382,7 +401,7 @@ export default function TrainingPage() {
       let logical: number;
       if (time >= Number(last.time)) logical = state.currentIndex + (time - Number(last.time)) / state.timeframeSeconds;
       else { let low = 0, high = Math.min(state.currentIndex, candles.length - 1); while (low < high) { const mid = Math.floor((low + high) / 2); if (Number(candles[mid].time) < time) low = mid + 1; else high = mid; } const right = low; if (right === 0) logical = 0; else { const left = right - 1, span = Number(candles[right].time) - Number(candles[left].time); logical = left + (span ? (time - Number(candles[left].time)) / span : 0); } }
-      return chart.timeScale().logicalToCoordinate(logical);
+      return chart.timeScale().logicalToCoordinate(logical as Logical);
     };
     type RenderMark = { mark: ChartMark; a: { x: number; y: number }; b?: { x: number; y: number }; handles?: { a?: { x: number; y: number }; b?: { x: number; y: number }; tp?: { x: number; y: number } }; active: boolean; ghost: boolean };
     let renderedMarks: RenderMark[] = [];
@@ -406,7 +425,7 @@ export default function TrainingPage() {
               context.beginPath();
               if (mark.type === "line") { context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.stroke(); }
               else if (mark.type === "rectangle") { const left = Math.min(a.x, b.x), top = Math.min(a.y, b.y), width = Math.abs(b.x - a.x), height = Math.abs(b.y - a.y); context.fillStyle = "rgba(96,165,250,0.12)"; context.fillRect(left, top, width, height); context.strokeRect(left, top, width, height); }
-              else {
+              else if (mark.type === "long" || mark.type === "short") {
                 const isLong = mark.type === "long";
                 const targetPrice = mark.tpPrice;
                 const targetY = series.priceToCoordinate(targetPrice);
@@ -727,7 +746,7 @@ export default function TrainingPage() {
         logical = left + fraction;
       }
     }
-    return chart.timeScale().logicalToCoordinate(logical);
+    return chart.timeScale().logicalToCoordinate(logical as Logical);
   };
 
   const snapLinePoint = (origin: ChartPoint, target: ChartPoint): ChartPoint => {
