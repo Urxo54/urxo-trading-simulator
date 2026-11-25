@@ -1249,6 +1249,7 @@ export default function TrainingPage() {
             <p className="mt-2 text-sm text-zinc-400">{tradeResult === "take-profit" ? "Тейк-профит достигнут. Отличная работа!" : "Сделка закрыта по стоп-лоссу. Можно разобрать ситуацию и попробовать ещё раз."}</p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <button onClick={() => window.location.assign("/training")} className="flex-1 rounded-lg bg-white px-4 py-3 text-xs font-bold text-black hover:bg-zinc-200">Следующий график</button>
+              <Link href="/" className="flex-1 rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">В дашборд</Link>
               <Link href="/" className="flex-1 rounded-lg border border-white/15 px-4 py-3 text-xs font-semibold text-zinc-300 hover:bg-white/10">Главное меню</Link>
             </div>
           </div>
