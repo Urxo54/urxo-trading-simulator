@@ -9,6 +9,7 @@ export type TradeHistoryItem = {
   result: TradeResult;
   pointsDelta: number;
   balanceAfter: number;
+  rr?: number;
   marks: unknown[];
 };
 
@@ -16,6 +17,14 @@ export type PointsAccount = { balance: number; trades: TradeHistoryItem[] };
 
 const STORAGE_KEY = "urxo-points-account-v1";
 export const STARTING_POINTS = 100;
+export const TRADE_RISK_POINTS = 10;
+
+export function calculateRoundedRR(entryPrice: number, stopLoss: number, takeProfit: number): number {
+  const risk = Math.abs(entryPrice - stopLoss);
+  const reward = Math.abs(takeProfit - entryPrice);
+  if (!Number.isFinite(risk) || !Number.isFinite(reward) || risk <= 0) return 0;
+  return Math.max(0, Math.round(reward / risk));
+}
 
 export function readPointsAccount(): PointsAccount {
   if (typeof window === "undefined") return { balance: STARTING_POINTS, trades: [] };
@@ -38,10 +47,11 @@ export function recordCompletedTrade(trade: Omit<TradeHistoryItem, "pointsDelta"
   const account = readPointsAccount();
   const existing = account.trades.find((item) => item.id === trade.id);
   if (existing) return { account, added: false, pointsDelta: existing.pointsDelta };
-  const pointsDelta = trade.result === "take-profit" ? 30 : -10;
+  const rr = Number.isFinite(trade.rr) ? Math.max(0, Math.round(trade.rr ?? 0)) : 0;
+  const pointsDelta = trade.result === "take-profit" ? TRADE_RISK_POINTS * rr : -TRADE_RISK_POINTS;
   const next: PointsAccount = {
     balance: account.balance + pointsDelta,
-    trades: [{ ...trade, pointsDelta, balanceAfter: account.balance + pointsDelta }, ...account.trades],
+    trades: [{ ...trade, rr, pointsDelta, balanceAfter: account.balance + pointsDelta }, ...account.trades],
   };
   if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   return { account: next, added: true, pointsDelta };
