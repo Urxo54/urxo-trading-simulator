@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { findFirstPriceTouch, findFirstTradeExit, positionRightEdgeIndex } from "@/lib/trading-replay";
+import { readPointsAccount, recordCompletedTrade } from "@/lib/points-account";
 import {
   CandlestickSeries,
   ColorType,
@@ -98,6 +99,8 @@ export default function TrainingPage() {
   const [reviewTakeProfit, setReviewTakeProfit] = useState("");
   const [reviewStopLoss, setReviewStopLoss] = useState("");
   const [tradeResult, setTradeResult] = useState<"take-profit" | "stop-loss" | null>(null);
+  const [pointsBalance, setPointsBalance] = useState(100);
+  const [lastPointsDelta, setLastPointsDelta] = useState<number | null>(null);
   const [playbackSpeed, setPlaybackSpeed] = useState(10);
   const [currentReplayTime, setCurrentReplayTime] = useState<number | null>(null);
   const allCandlesRef = useRef<CandlestickData<Time>[]>([]);
@@ -235,11 +238,34 @@ export default function TrainingPage() {
           replayStopped = true;
           setTradeResult(exit.result);
           const exitCandle = candles[exit.index];
-          return {
+          const closedMark: ChartMark = {
             ...mark,
             b: { ...mark.b, time: Number(exitCandle.time) },
             closedIndex: exit.index,
           };
+          const snapshot: ReviewSnapshot = {
+            instrument,
+            timeframe,
+            sessionTime: sessionTimeRef.current ?? Number(candles[0]?.time ?? 0),
+            currentReplayTime: Number(exitCandle.time),
+            marks: [...marks.filter((item) => item.id !== mark.id), closedMark],
+            tradeResult: exit.result,
+          };
+          const tradeId = `${instrument}:${timeframe}:${snapshot.sessionTime}:${mark.id}`;
+          const saved = recordCompletedTrade({
+            id: tradeId,
+            instrument,
+            timeframe,
+            sessionTime: snapshot.sessionTime,
+            closeTime: Number(exitCandle.time),
+            result: exit.result,
+            marks: snapshot.marks,
+          });
+          setPointsBalance(saved.account.balance);
+          setLastPointsDelta(saved.pointsDelta);
+          window.localStorage.setItem("urxo-trade-review", JSON.stringify(snapshot));
+          window.dispatchEvent(new Event("urxo-points-updated"));
+          return closedMark;
         }
         const rightIndex = positionRightEdgeIndex(mark.triggerIndex, nextIndex, candles.length);
         const rightTime = Number(candles[rightIndex]?.time ?? mark.b.time);
@@ -317,6 +343,7 @@ export default function TrainingPage() {
 
   // Restore a completed trade when opening analysis mode.
   useEffect(() => {
+    setPointsBalance(readPointsAccount().balance);
     const params = new URLSearchParams(window.location.search);
     if (params.get("mode") === "review") {
       try {
@@ -1431,6 +1458,7 @@ export default function TrainingPage() {
             <p className="mt-4 text-[10px] font-semibold tracking-[0.2em] text-zinc-500">TRADE FINISHED</p>
             <h3 className="mt-2 text-2xl font-semibold">{tradeResult === "take-profit" ? "Успешно!" : "Сработал стоп-лосс"}</h3>
             <p className="mt-2 text-sm text-zinc-400">{tradeResult === "take-profit" ? "Тейк-профит достигнут. Отличная работа!" : "Сделка закрыта по стоп-лоссу. Можно разобрать ситуацию и попробовать ещё раз."}</p>
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4"><p className={`text-2xl font-bold ${lastPointsDelta !== null && lastPointsDelta > 0 ? "text-emerald-300" : "text-zinc-200"}`}>{lastPointsDelta === null ? "—" : `${lastPointsDelta > 0 ? "+" : ""}${lastPointsDelta} очков`}</p><p className="mt-1 text-xs text-zinc-500">Текущий баланс: <span className="font-semibold text-white">{pointsBalance} очков</span></p></div>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <button onClick={() => {
                 if (sessionTime !== null && currentReplayTime !== null) {
