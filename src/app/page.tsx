@@ -239,12 +239,12 @@ export default function Home() {
         <nav className="space-y-2">
           {menu.map((item) => {
             const href = item.label === "Dashboard"
-              ? "#dashboard"
+              ? "/"
               : item.label === "Training"
                 ? "/training"
                 : item.label === "Statistics"
-                  ? "#statistics"
-                  : "#history";
+                  ? "/statistics"
+                  : "/history";
             return (
               <a
                 key={item.label}
@@ -474,36 +474,6 @@ export default function Home() {
               ))}
             </div>
           </div>
-
-          <section id="history" className="mt-8 scroll-mt-8 rounded-2xl border border-white/[0.08] bg-[#111111] p-6">
-            <div className="mb-5 flex items-center justify-between gap-3">
-              <div><h2 className="text-lg font-semibold">Trade History</h2><p className="mt-1 text-xs text-zinc-500">Каждая закрытая сделка и её результат</p></div>
-              <span className="rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400">{account.trades.length} сделок</span>
-            </div>
-            {account.trades.length === 0 ? <p className="rounded-xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-zinc-500">Пока нет закрытых сделок. Начни тренировку, чтобы здесь появилась история.</p> : <div className="space-y-2">
-              {account.trades.map((trade) => <button key={trade.id} type="button" onClick={() => openTradeReview(trade)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-black/20 p-4 text-left transition hover:border-white/20 hover:bg-white/[0.04]">
-                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold">{trade.instrument.toUpperCase()}</span><span className="rounded-md bg-white/[0.06] px-2 py-1 text-[10px] text-zinc-400">{trade.timeframe}</span><span className="text-[10px] text-zinc-600">{trade.result === "take-profit" ? "TAKE PROFIT" : "STOP LOSS"}</span></div><p className="mt-1 text-[11px] text-zinc-500">{new Date(trade.closeTime * 1000).toLocaleString("ru-RU", { timeZone: "UTC" })} UTC</p></div>
-                <div className="shrink-0 text-right"><p className={`text-sm font-semibold ${trade.pointsDelta > 0 ? "text-emerald-300" : "text-zinc-300"}`}>{trade.pointsDelta > 0 ? "+" : ""}{trade.pointsDelta} pts</p><p className="mt-1 text-[10px] text-zinc-500">Баланс {trade.balanceAfter}</p></div>
-                <ChevronRight size={16} className="shrink-0 text-zinc-500" />
-              </button>)}
-            </div>}
-          </section>
-
-          <section id="statistics" className="mt-5 scroll-mt-8 rounded-2xl border border-white/[0.08] bg-[#111111] p-6">
-            <div className="mb-5"><h2 className="text-lg font-semibold">Statistics</h2><p className="mt-1 text-xs text-zinc-500">Динамика очков и качество торговли</p></div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl bg-white/[0.035] p-4"><p className="text-xs text-zinc-500">Net points</p><p className="mt-2 text-2xl font-semibold">{account.balance - 100 > 0 ? "+" : ""}{account.balance - 100}</p></div>
-              <div className="rounded-xl bg-white/[0.035] p-4"><p className="text-xs text-zinc-500">Win rate</p><p className="mt-2 text-2xl font-semibold">{account.trades.length ? `${winRate}%` : "—"}</p></div>
-              <div className="rounded-xl bg-white/[0.035] p-4"><p className="text-xs text-zinc-500">Best streak</p><p className="mt-2 text-2xl font-semibold">{(() => { let best = 0, current = 0; for (const trade of [...account.trades].reverse()) { current = trade.result === "take-profit" ? current + 1 : 0; best = Math.max(best, current); } return best; })()}</p></div>
-            </div>
-            <div className="mt-5 rounded-xl border border-white/[0.07] bg-black/20 p-4">
-              <div className="mb-3 flex items-center justify-between"><p className="text-xs font-medium text-zinc-300">Points balance curve</p><p className="text-[10px] text-zinc-500">Start: 100 pts</p></div>
-              {equityPoints.length === 0 ? <div className="flex h-40 items-center justify-center text-xs text-zinc-600">Кривая появится после первой закрытой сделки</div> : <svg viewBox="0 0 640 180" role="img" aria-label="График изменения баланса очков" className="h-44 w-full overflow-visible">
-                {(() => { const values = [100, ...equityPoints]; const min = Math.min(...values, 100) - 5; const max = Math.max(...values, 100) + 5; const span = Math.max(1, max - min); const pts = values.map((value, index) => ({ x: 12 + index * (616 / Math.max(1, values.length - 1)), y: 160 - ((value - min) / span) * 140 })); return <><line x1="12" y1={160 - ((100 - min) / span) * 140} x2="628" y2={160 - ((100 - min) / span) * 140} stroke="rgba(255,255,255,.2)" strokeDasharray="4 5" /><polyline points={pts.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke="#e4e4e7" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />{pts.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r="3" fill="#fff" />)}</>; })()}
-              </svg>}
-            </div>
-            <p className="mt-3 text-[10px] text-zinc-600">Каждая точка на графике — баланс после закрытия очередной сделки.</p>
-          </section>
 
           <footer className="mt-10 flex flex-wrap justify-between gap-3 border-t border-white/[0.08] pt-6 text-[10px] text-zinc-600">
             <span>URXO TRADING LAB · HISTORICAL MARKET SIMULATOR</span>
