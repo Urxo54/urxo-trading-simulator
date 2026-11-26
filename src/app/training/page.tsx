@@ -339,11 +339,10 @@ export default function TrainingPage() {
     setCurrentReplayTime(Number(lastCandle.time));
     setMarks(nextMarks);
     if (replayStopped) setIsPlaying(false);
-  }, [selectedInstrument.decimals, marks]);
+  }, [selectedInstrument.decimals, marks, instrument, timeframe]);
 
   // Restore a completed trade when opening analysis mode.
   useEffect(() => {
-    setPointsBalance(readPointsAccount().balance);
     const params = new URLSearchParams(window.location.search);
     if (params.get("mode") === "review") {
       try {
@@ -368,6 +367,7 @@ export default function TrainingPage() {
       }
     }
     const frame = window.requestAnimationFrame(() => {
+      setPointsBalance(readPointsAccount().balance);
       const markets = Object.keys(instrumentDetails) as Instrument[];
       const randomMarket = markets[Math.floor(Math.random() * markets.length)];
       setInstrument(randomMarket);
