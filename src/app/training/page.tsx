@@ -467,6 +467,22 @@ export default function TrainingPage() {
                   context.beginPath(); context.moveTo(left, a.y); context.lineTo(right, a.y); context.stroke();
                   context.beginPath(); context.setLineDash([5, 4]); context.moveTo(left, targetY); context.lineTo(right, targetY); context.moveTo(left, stopY); context.lineTo(right, stopY); context.stroke(); context.setLineDash([]);
                   context.font = "11px Arial"; context.fillStyle = "#ffffff"; context.fillText("orderType" in mark && mark.orderType === "pending" ? (isLong ? "PENDING BUY" : "PENDING SELL") : "orderType" in mark && mark.orderType === "market" ? (isLong ? "LONG · OPEN" : "SHORT · OPEN") : (isLong ? "LONG" : "SHORT"), left + 5, profitTop + 13);
+                  const pointsFor = (price: number) => Math.max(0, Math.floor(Math.abs(price - mark.a.price) * (10 ** drawingStateRef.current.decimals) / 25));
+                  const profitPoints = pointsFor(mark.tpPrice);
+                  const riskPoints = Math.max(1, pointsFor(mark.b.price));
+                  const drawScoreLabel = (label: string, y: number, positive: boolean) => {
+                    context.font = "bold 11px Arial";
+                    context.textAlign = "right";
+                    const textWidth = context.measureText(label).width;
+                    const labelX = mediaSize.width - 10;
+                    context.fillStyle = "rgba(8,8,8,0.88)";
+                    context.fillRect(labelX - textWidth - 10, y - 11, textWidth + 10, 17);
+                    context.fillStyle = positive ? "#86efac" : "#d4d4d8";
+                    context.fillText(label, labelX - 5, y + 1);
+                    context.textAlign = "left";
+                  };
+                  drawScoreLabel(`TP +${profitPoints} оч.`, targetY, true);
+                  drawScoreLabel(`SL −${riskPoints} оч.`, stopY, false);
                 }
               }
             }
@@ -892,6 +908,7 @@ export default function TrainingPage() {
 
       if (hit) {
         chartRef.current?.applyOptions({ handleScroll: false, handleScale: false });
+        try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Pointer capture may be unavailable in older browsers. */ }
         event.stopPropagation();
         event.preventDefault();
       }
@@ -1014,7 +1031,13 @@ export default function TrainingPage() {
     }
   };
 
-  const handleChartPointerUp = () => { if (reviewMode) return; if(dragRef.current){dragRef.current=null;chartRef.current?.applyOptions({handleScroll:true,handleScale:true});chartRef.current?.clearCrosshairPosition();} };
+  const handleChartPointerUp = () => {
+    if (dragRef.current) {
+      dragRef.current = null;
+      chartRef.current?.applyOptions({ handleScroll: true, handleScale: true });
+      chartRef.current?.clearCrosshairPosition();
+    }
+  };
 
   const createPosition = (direction: "long" | "short", orderType: "market" | "pending") => {
     const candle = allCandlesRef.current[currentIndex];
@@ -1196,8 +1219,26 @@ export default function TrainingPage() {
             </div>
             <div className="flex items-center gap-4 text-zinc-500">
               <span className="text-xs">Last <span className="text-zinc-300">{lastPrice}</span></span>
-              <button type="button" aria-label="Zoom out" title="Отдалить" onClick={() => { const scale = chartRef.current?.timeScale(); const range = scale?.getVisibleLogicalRange(); if (scale && range) { const center = (range.from + range.to) / 2; const width = (range.to - range.from) * 1.25; scale.setVisibleLogicalRange({ from: center - width / 2, to: center + width / 2 }); } }} className="hover:text-white"><Minus size={15} /></button>
-              <button type="button" aria-label="Zoom in" title="Приблизить" onClick={() => { const scale = chartRef.current?.timeScale(); const range = scale?.getVisibleLogicalRange(); if (scale && range) { const center = (range.from + range.to) / 2; const width = Math.max((range.to - range.from) * 0.8, 5); scale.setVisibleLogicalRange({ from: center - width / 2, to: center + width / 2 }); } }} className="hover:text-white"><Plus size={15} /></button>
+              <button type="button" aria-label="Zoom out" title="Отдалить" onClick={() => {
+                const chart = chartRef.current;
+                if (!chart) return;
+                const scale = chart.timeScale();
+                const range = scale.getVisibleLogicalRange() ?? { from: Math.max(-1, currentIndex - 70), to: currentIndex + 30 };
+                const center = (range.from + range.to) / 2;
+                const width = Math.min((range.to - range.from) * 1.25, Math.max(totalCandles + 100, 120));
+                scale.setVisibleLogicalRange({ from: center - width / 2, to: center + width / 2 });
+                chart.applyOptions({ handleScroll: true, handleScale: true });
+              }} className="hover:text-white"><Minus size={15} /></button>
+              <button type="button" aria-label="Zoom in" title="Приблизить" onClick={() => {
+                const chart = chartRef.current;
+                if (!chart) return;
+                const scale = chart.timeScale();
+                const range = scale.getVisibleLogicalRange() ?? { from: Math.max(-1, currentIndex - 70), to: currentIndex + 30 };
+                const center = (range.from + range.to) / 2;
+                const width = Math.max((range.to - range.from) * 0.8, 5);
+                scale.setVisibleLogicalRange({ from: center - width / 2, to: center + width / 2 });
+                chart.applyOptions({ handleScroll: true, handleScale: true });
+              }} className="hover:text-white"><Plus size={15} /></button>
               <button type="button" aria-label="Fit chart" title="Показать все доступные свечи" onClick={() => chartRef.current?.timeScale().fitContent()} className="hover:text-white"><Maximize2 size={15} /></button>
             </div>
           </div>
