@@ -350,6 +350,7 @@ export default function TrainingPage() {
         const snapshot = raw ? JSON.parse(raw) as ReviewSnapshot : null;
         if (snapshot && snapshot.instrument in instrumentDetails && snapshot.timeframe) {
           const frame = window.requestAnimationFrame(() => {
+            setPointsBalance(readPointsAccount().balance);
             reviewRestoreRef.current = snapshot;
             sessionTimeRef.current = snapshot.sessionTime;
             setInstrument(snapshot.instrument);
