@@ -260,6 +260,7 @@ export default function TrainingPage() {
             closeTime: Number(exitCandle.time),
             result: exit.result,
             rr: calculateRoundedRR(mark.a.price, mark.b.price, mark.tpPrice),
+            distancePoints: Math.abs((exit.result === "take-profit" ? mark.tpPrice : mark.b.price) - mark.a.price) * (10 ** selectedInstrument.decimals),
             marks: snapshot.marks,
           });
           setPointsBalance(saved.account.balance);
