@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, BarChart3, CandlestickChart, ChevronRight, Clock3, LayoutDashboard } from "lucide-react";
@@ -42,7 +43,7 @@ export default function HistoryPage() {
   return (
     <main className="min-h-screen bg-[#090909] text-white">
       <aside className="fixed inset-y-0 left-0 hidden w-[245px] flex-col border-r border-white/[0.08] bg-[#0d0d0d] p-6 lg:flex">
-        <a href="/" className="mb-10 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black"><Activity size={23} /></div><div><h1 className="text-lg font-bold tracking-[0.18em]">URXO</h1><p className="text-[10px] tracking-[0.2em] text-zinc-500">TRADING LAB</p></div></a>
+        <Link href="/" className="mb-10 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black"><Activity size={23} /></div><div><h1 className="text-lg font-bold tracking-[0.18em]">URXO</h1><p className="text-[10px] tracking-[0.2em] text-zinc-500">TRADING LAB</p></div></Link>
         <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-600">Workspace</p>
         <nav className="space-y-2">{nav.map(({label,href,Icon}) => <a key={label} href={href} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition-colors ${label === "History" ? "bg-white/[0.09] font-medium text-white" : "text-zinc-500 hover:bg-white/[0.05] hover:text-white"}`}><Icon size={18}/>{label}</a>)}</nav>
       </aside>
