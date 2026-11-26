@@ -18,7 +18,7 @@ export type PointsAccount = { balance: number; trades: TradeHistoryItem[] };
 
 const STORAGE_KEY = "urxo-points-account-v1";
 export const STARTING_POINTS = 100;
-export const DISTANCE_POINTS_PER_SCORE = 25;
+export const DISTANCE_POINTS_PER_SCORE = 50;
 export const MIN_STOP_PENALTY = 1;
 
 export function calculateRoundedRR(entryPrice: number, stopLoss: number, takeProfit: number): number {
