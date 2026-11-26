@@ -237,22 +237,32 @@ export default function Home() {
         </p>
 
         <nav className="space-y-2">
-          {menu.map((item) => (
-            <div
-              key={item.label}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm ${
-                item.active
-                  ? "bg-white/[0.09] font-medium text-white"
-                  : "text-zinc-500"
-              }`}
-            >
-              <item.icon size={18} />
-              {item.label}
-              {item.active && (
-                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-white" />
-              )}
-            </div>
-          ))}
+          {menu.map((item) => {
+            const href = item.label === "Dashboard"
+              ? "#dashboard"
+              : item.label === "Training"
+                ? "/training"
+                : item.label === "Statistics"
+                  ? "#statistics"
+                  : "#history";
+            return (
+              <a
+                key={item.label}
+                href={href}
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition-colors ${
+                  item.active
+                    ? "bg-white/[0.09] font-medium text-white"
+                    : "text-zinc-500 hover:bg-white/[0.05] hover:text-white"
+                }`}
+              >
+                <item.icon size={18} />
+                {item.label}
+                {item.active && (
+                  <div className="ml-auto h-1.5 w-1.5 rounded-full bg-white" />
+                )}
+              </a>
+            );
+          })}
         </nav>
 
         <div className="mt-10">
