@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { readPointsAccount, type PointsAccount, type TradeHistoryItem } from "@/lib/points-account";
 
 import {
@@ -64,6 +65,7 @@ function formatBytes(bytes: number) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState("Ready to import 2024–2025 historical data.");
   const [importProgress, setImportProgress] = useState(0);
@@ -98,7 +100,7 @@ export default function Home() {
       tradeResult: trade.result,
     };
     window.sessionStorage.setItem("urxo-trade-review", JSON.stringify(snapshot));
-    window.location.href = `/training?mode=review&session=${Date.now()}`;
+    router.push("/training?mode=review");
   }
 
   useEffect(() => {
