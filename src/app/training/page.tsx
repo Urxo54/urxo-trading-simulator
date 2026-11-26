@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { findFirstPriceTouch, findFirstTradeExit, positionRightEdgeIndex } from "@/lib/trading-replay";
-import { readPointsAccount, recordCompletedTrade } from "@/lib/points-account";
+import { calculateRoundedRR, readPointsAccount, recordCompletedTrade } from "@/lib/points-account";
 import {
   CandlestickSeries,
   ColorType,
@@ -259,6 +259,7 @@ export default function TrainingPage() {
             sessionTime: snapshot.sessionTime,
             closeTime: Number(exitCandle.time),
             result: exit.result,
+            rr: calculateRoundedRR(mark.a.price, mark.b.price, mark.tpPrice),
             marks: snapshot.marks,
           });
           setPointsBalance(saved.account.balance);
