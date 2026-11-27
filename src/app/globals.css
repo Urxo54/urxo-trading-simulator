@@ -118,5 +118,12 @@ html[data-theme="light"] [class*="bg-gradient"] { background: #ffffff !important
   .urxo-intro-info-lead { font-size:13px; }
   .urxo-intro-features { gap:10px; }
 }
+.urxo-intro-scene.urxo-intro-entry.is-visible {
+  animation:urxo-final-scene-fade-in 2.8s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes urxo-final-scene-fade-in {
+  0% { opacity:0; transform:translate3d(-50%,calc(-50% + 24px),0); }
+  100% { opacity:1; transform:translate3d(-50%,-50%,0); }
+}
 .urxo-intro-scene.is-visible { will-change:opacity,transform; }
 .urxo-intro-scene.is-exiting { will-change:opacity,transform; }
