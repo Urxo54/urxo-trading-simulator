@@ -7,22 +7,14 @@ type IntroStage = 0 | 1 | 2;
 
 export default function WelcomeOnboarding() {
   const [stage, setStage] = useState<IntroStage>(0);
-  const [exitingStage, setExitingStage] = useState<IntroStage | null>(null);
   const [entered, setEntered] = useState(false);
 
   useEffect(() => {
-    let exitTimer: number | undefined;
-    const transitionTo = (nextStage: IntroStage) => {
-      setExitingStage(nextStage === 1 ? 0 : 1);
-      setStage(nextStage);
-      exitTimer = window.setTimeout(() => setExitingStage(null), 500);
-    };
-    const introTimer = window.setTimeout(() => transitionTo(1), 3000);
-    const detailsTimer = window.setTimeout(() => transitionTo(2), 6500);
+    const introTimer = window.setTimeout(() => setStage(1), 1800);
+    const detailsTimer = window.setTimeout(() => setStage(2), 3900);
     return () => {
       window.clearTimeout(introTimer);
       window.clearTimeout(detailsTimer);
-      if (exitTimer !== undefined) window.clearTimeout(exitTimer);
     };
   }, []);
 
@@ -63,14 +55,14 @@ export default function WelcomeOnboarding() {
           <div className="urxo-intro-chart-label"><span>PRICE ACTION</span><span>HISTORICAL DATA · LIVE DECISIONS</span></div>
         </div>
 
-        <section className={"urxo-intro-scene " + (stage === 0 ? "is-active" : exitingStage === 0 ? "is-exiting" : "")} aria-hidden={stage !== 0}>
+        <section className={"urxo-intro-scene " + (stage >= 0 ? "is-visible" : "")} aria-hidden={stage !== 0}>
           <div className="urxo-intro-kicker"><span /> A NEW WAY TO PRACTICE</div>
           <h1 id="urxo-intro-title">Добро пожаловать</h1>
           <div className="urxo-intro-welcome-brand">в <em>URXO.</em></div>
           <div className="urxo-intro-scene-index">01 <i /> 03</div>
         </section>
 
-        <section className={"urxo-intro-scene urxo-intro-info " + (stage === 1 ? "is-active" : exitingStage === 1 ? "is-exiting" : "")} aria-hidden={stage !== 1}>
+        <section className={"urxo-intro-scene urxo-intro-info " + (stage >= 1 ? "is-visible" : "")} aria-hidden={stage !== 1}>
           <div className="urxo-intro-kicker"><span /> ТВОЯ ПРАКТИКА НАЧИНАЕТСЯ ЗДЕСЬ</div>
           <h2>Рынок. Опыт. <em>Твой прогресс.</em></h2>
           <p className="urxo-intro-info-lead">URXO — торговый тренажёр на исторических рыночных данных. Учись читать график и оттачивай торговые решения без риска реальными деньгами.</p>
@@ -81,7 +73,7 @@ export default function WelcomeOnboarding() {
           <div className="urxo-intro-scene-index">02 <i /> 03</div>
         </section>
 
-        <section className={"urxo-intro-scene urxo-intro-entry " + (stage === 2 ? "is-active" : "")} aria-hidden={stage !== 2}>
+        <section className={"urxo-intro-scene urxo-intro-entry " + (stage >= 2 ? "is-visible" : "")} aria-hidden={stage !== 2}>
           <div className="urxo-intro-kicker"><span /> ГОТОВ НАЧАТЬ?</div>
           <h2>Твоя следующая<br /><em>сделка — это опыт.</em></h2>
           <p className="urxo-intro-info-lead">Заходи в URXO. Выбирай рынок, анализируй график и тренируй собственную систему.</p>
