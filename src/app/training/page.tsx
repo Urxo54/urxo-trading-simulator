@@ -384,26 +384,51 @@ export default function TrainingPage() {
     const container = chartContainerRef.current;
     if (!container) return;
 
+    const getChartPalette = () => {
+      const light = document.documentElement.dataset.theme === "light";
+      return light
+        ? {
+            background: "#ffffff",
+            text: "#647084",
+            grid: "rgba(24,32,45,0.07)",
+            crosshair: "rgba(24,32,45,0.38)",
+            border: "rgba(24,32,45,0.16)",
+            up: "#16a34a",
+            down: "#dc2626",
+            downWick: "#b91c1c",
+          }
+        : {
+            background: "#080808",
+            text: "#a1a1aa",
+            grid: "rgba(255,255,255,0.045)",
+            crosshair: "rgba(255,255,255,0.3)",
+            border: "rgba(255,255,255,0.1)",
+            up: "#ffffff",
+            down: "#666666",
+            downWick: "#777777",
+          };
+    };
+    const palette = getChartPalette();
     const chart = createChart(container, {
       width: Math.max(container.clientWidth, 320),
       height: 520,
       layout: {
-        background: { type: ColorType.Solid, color: "#080808" },
-        textColor: "#a1a1aa",
+        background: { type: ColorType.Solid, color: palette.background },
+        textColor: palette.text,
         fontFamily: "Arial, sans-serif",
       },
       grid: {
-        vertLines: { color: "rgba(255,255,255,0.045)" },
-        horzLines: { color: "rgba(255,255,255,0.045)" },
+        vertLines: { color: palette.grid },
+        horzLines: { color: palette.grid },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: "rgba(255,255,255,0.3)", width: 1, style: 2 },
-        horzLine: { color: "rgba(255,255,255,0.3)", width: 1, style: 2 },
+        vertLine: { color: palette.crosshair, width: 1, style: 2 },
+        horzLine: { color: palette.crosshair, width: 1, style: 2 },
       },
-      rightPriceScale: { borderColor: "rgba(255,255,255,0.1)" },
+      rightPriceScale: { borderColor: palette.border },
       timeScale: {
-        borderColor: "rgba(255,255,255,0.1)",
+        borderColor: palette.border,
         timeVisible: true,
         secondsVisible: false,
       },
@@ -412,12 +437,12 @@ export default function TrainingPage() {
     });
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#ffffff",
-      downColor: "#666666",
-      borderUpColor: "#ffffff",
-      borderDownColor: "#666666",
-      wickUpColor: "#ffffff",
-      wickDownColor: "#777777",
+      upColor: palette.up,
+      downColor: palette.down,
+      borderUpColor: palette.up,
+      borderDownColor: palette.down,
+      wickUpColor: palette.up,
+      wickDownColor: palette.downWick,
     });
 
     chartRef.current = chart;
@@ -431,6 +456,7 @@ export default function TrainingPage() {
       return chart.timeScale().logicalToCoordinate(logical as Logical);
     };
     type RenderMark = { mark: ChartMark; a: { x: number; y: number }; b?: { x: number; y: number }; handles?: { a?: { x: number; y: number }; b?: { x: number; y: number }; tp?: { x: number; y: number } }; active: boolean; ghost: boolean };
+    const isLightChart = () => document.documentElement.dataset.theme === "light";
     let renderedMarks: RenderMark[] = [];
     const drawingRenderer = {
       draw: (target: { useMediaCoordinateSpace: (callback: (scope: { context: CanvasRenderingContext2D; mediaSize: { width: number; height: number } }) => void) => void }) => {
@@ -446,8 +472,8 @@ export default function TrainingPage() {
             context.strokeStyle = active ? "#ffffff" : mark.type === "rectangle" ? "#60a5fa" : mark.type === "long" ? "#22c55e" : mark.type === "short" ? "#ef4444" : "#f472b6";
             if (ghost) context.setLineDash([5, 4]);
             if (mark.type === "text") {
-              context.font = "13px Arial"; context.lineWidth = 3; context.strokeStyle = "#080808"; context.strokeText(mark.text ?? "", a.x + 7, a.y - 7);
-              context.fillStyle = "#ffffff"; context.fillText(mark.text ?? "", a.x + 7, a.y - 7);
+              context.font = "13px Arial"; context.lineWidth = 3; context.strokeStyle = isLightChart() ? "#ffffff" : "#080808"; context.strokeText(mark.text ?? "", a.x + 7, a.y - 7);
+              context.fillStyle = isLightChart() ? "#18202d" : "#ffffff"; context.fillText(mark.text ?? "", a.x + 7, a.y - 7);
             } else if (b) {
               context.beginPath();
               if (mark.type === "line") { context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.stroke(); }
@@ -461,12 +487,12 @@ export default function TrainingPage() {
                   const stopY = series.priceToCoordinate(mark.b.price) ?? b.y;
                   const profitTop = Math.min(a.y, targetY), profitBottom = Math.max(a.y, targetY);
                   const riskTop = Math.min(a.y, stopY), riskBottom = Math.max(a.y, stopY);
-                  context.fillStyle = "rgba(255,255,255,0.10)"; context.fillRect(left, profitTop, width, Math.max(1, profitBottom - profitTop));
-                  context.fillStyle = "rgba(0,0,0,0.45)"; context.fillRect(left, riskTop, width, Math.max(1, riskBottom - riskTop));
-                  context.strokeStyle = isLong ? "#ffffff" : "#000000";
+                  context.fillStyle = isLightChart() ? "rgba(22,163,74,0.13)" : "rgba(255,255,255,0.10)"; context.fillRect(left, profitTop, width, Math.max(1, profitBottom - profitTop));
+                  context.fillStyle = isLightChart() ? "rgba(220,38,38,0.12)" : "rgba(0,0,0,0.45)"; context.fillRect(left, riskTop, width, Math.max(1, riskBottom - riskTop));
+                  context.strokeStyle = isLightChart() ? (isLong ? "#16a34a" : "#dc2626") : (isLong ? "#ffffff" : "#000000");
                   context.beginPath(); context.moveTo(left, a.y); context.lineTo(right, a.y); context.stroke();
                   context.beginPath(); context.setLineDash([5, 4]); context.moveTo(left, targetY); context.lineTo(right, targetY); context.moveTo(left, stopY); context.lineTo(right, stopY); context.stroke(); context.setLineDash([]);
-                  context.font = "11px Arial"; context.fillStyle = "#ffffff"; context.fillText("orderType" in mark && mark.orderType === "pending" ? (isLong ? "PENDING BUY" : "PENDING SELL") : "orderType" in mark && mark.orderType === "market" ? (isLong ? "LONG · OPEN" : "SHORT · OPEN") : (isLong ? "LONG" : "SHORT"), left + 5, profitTop + 13);
+                  context.font = "11px Arial"; context.fillStyle = isLightChart() ? "#18202d" : "#ffffff"; context.fillText("orderType" in mark && mark.orderType === "pending" ? (isLong ? "PENDING BUY" : "PENDING SELL") : "orderType" in mark && mark.orderType === "market" ? (isLong ? "LONG · OPEN" : "SHORT · OPEN") : (isLong ? "LONG" : "SHORT"), left + 5, profitTop + 13);
                   const pointsFor = (price: number) => Math.max(0, Math.floor(Math.abs(price - mark.a.price) * (10 ** drawingStateRef.current.decimals) / 25));
                   const profitPoints = pointsFor(mark.tpPrice);
                   const riskPoints = Math.max(1, pointsFor(mark.b.price));
@@ -475,9 +501,9 @@ export default function TrainingPage() {
                     context.textAlign = "right";
                     const textWidth = context.measureText(label).width;
                     const labelX = mediaSize.width - 10;
-                    context.fillStyle = "rgba(8,8,8,0.88)";
+                    context.fillStyle = isLightChart() ? "rgba(255,255,255,0.92)" : "rgba(8,8,8,0.88)";
                     context.fillRect(labelX - textWidth - 10, y - 11, textWidth + 10, 17);
-                    context.fillStyle = positive ? "#86efac" : "#d4d4d8";
+                    context.fillStyle = positive ? (isLightChart() ? "#15803d" : "#86efac") : (isLightChart() ? "#647084" : "#d4d4d8");
                     context.fillText(label, labelX - 5, y + 1);
                     context.textAlign = "left";
                   };
@@ -491,8 +517,8 @@ export default function TrainingPage() {
               const drawHandle = (point: { x: number; y: number }) => {
                 context.beginPath();
                 context.arc(point.x < 0 ? mediaSize.width - 28 : point.x, point.y, 5, 0, Math.PI * 2);
-                context.fillStyle = "#080808"; context.fill();
-                context.lineWidth = 2; context.strokeStyle = "#ffffff"; context.stroke();
+                context.fillStyle = isLightChart() ? "#ffffff" : "#080808"; context.fill();
+                context.lineWidth = 2; context.strokeStyle = isLightChart() ? "#334155" : "#ffffff"; context.stroke();
               };
               if (item.handles.a) drawHandle(item.handles.a);
               if (item.handles.b) drawHandle(item.handles.b);
@@ -549,6 +575,39 @@ export default function TrainingPage() {
       paneViews: () => [drawingPaneView],
     };
     series.attachPrimitive(drawingPrimitive as never);
+
+    // Keep Lightweight Charts in sync when the app theme changes without
+    // recreating the chart or disturbing the user's zoom and drawings.
+    const applyChartTheme = () => {
+      const next = getChartPalette();
+      chart.applyOptions({
+        layout: {
+          background: { type: ColorType.Solid, color: next.background },
+          textColor: next.text,
+        },
+        grid: {
+          vertLines: { color: next.grid },
+          horzLines: { color: next.grid },
+        },
+        crosshair: {
+          vertLine: { color: next.crosshair, width: 1, style: 2 },
+          horzLine: { color: next.crosshair, width: 1, style: 2 },
+        },
+        rightPriceScale: { borderColor: next.border },
+        timeScale: { borderColor: next.border },
+      });
+      series.applyOptions({
+        upColor: next.up,
+        downColor: next.down,
+        borderUpColor: next.up,
+        borderDownColor: next.down,
+        wickUpColor: next.up,
+        wickDownColor: next.downWick,
+      });
+      drawingPrimitiveRequestRef.current?.();
+    };
+    const themeObserver = new MutationObserver(applyChartTheme);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     setChartReady(true);
     const refreshOverlay=()=>{setOverlayVersion((value)=>value+1);drawingPrimitiveRequestRef.current?.();};
     chart.timeScale().subscribeVisibleTimeRangeChange(refreshOverlay);
@@ -560,6 +619,7 @@ export default function TrainingPage() {
 
     return () => {
       resizeObserver.disconnect();
+      themeObserver.disconnect();
       chart.timeScale().unsubscribeVisibleTimeRangeChange(refreshOverlay);
       chart.remove();
       chartRef.current = null;
