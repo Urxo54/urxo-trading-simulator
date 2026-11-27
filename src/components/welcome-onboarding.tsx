@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Activity, ArrowRight, CandlestickChart, ChartNoAxesCombined, X } from "lucide-react";
 
 const STORAGE_KEY = "urxo-welcome-seen";
+const subscribeToWelcome = () => () => {};
+const getWelcomeSnapshot = () => window.localStorage.getItem(STORAGE_KEY) !== "1";
+const getServerWelcomeSnapshot = () => false;
 
 const slides = [
   {
@@ -30,18 +33,9 @@ const slides = [
 ];
 
 export default function WelcomeOnboarding() {
-  const [visible, setVisible] = useState(false);
+  const shouldShow = useSyncExternalStore(subscribeToWelcome, getWelcomeSnapshot, getServerWelcomeSnapshot);
+  const [dismissed, setDismissed] = useState(false);
   const [step, setStep] = useState(0);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    try {
-      setVisible(window.localStorage.getItem(STORAGE_KEY) !== "1");
-    } catch {
-      setVisible(true);
-    }
-    setReady(true);
-  }, []);
 
   function finish() {
     try {
@@ -49,10 +43,10 @@ export default function WelcomeOnboarding() {
     } catch {
       // The welcome screen can still be dismissed when storage is unavailable.
     }
-    setVisible(false);
+    setDismissed(true);
   }
 
-  if (!ready || !visible) return null;
+  if (!shouldShow || dismissed) return null;
 
   const slide = slides[step];
   const SlideIcon = slide.icon;
