@@ -517,3 +517,37 @@ html[data-theme="light"] .urxo-intro-progress i.active { background:#526a83; }
 @media (prefers-reduced-motion:reduce) {
   .urxo-intro-scene.is-visible { animation:none !important; }
 }
+
+
+/* Real text reveal: animate the contents, not the scene wrapper.
+   The wrapper has legacy !important opacity rules that suppress CSS keyframes. */
+.urxo-intro-scene.is-visible > h1,
+.urxo-intro-scene.is-visible > .urxo-intro-welcome-brand,
+.urxo-intro-scene.is-visible > h2,
+.urxo-intro-scene.is-visible > .urxo-intro-info-lead,
+.urxo-intro-scene.is-visible > .urxo-intro-features,
+.urxo-intro-scene.is-visible > .urxo-intro-entry .urxo-intro-cta,
+.urxo-intro-scene.is-visible > .urxo-intro-cta {
+  animation:urxo-onboarding-text-in .95s cubic-bezier(.16,1,.3,1) both !important;
+}
+.urxo-intro-scene.is-visible > .urxo-intro-welcome-brand,
+.urxo-intro-scene.is-visible > .urxo-intro-info-lead { animation-delay:.16s !important; }
+.urxo-intro-scene.is-visible > .urxo-intro-features,
+.urxo-intro-scene.is-visible > .urxo-intro-cta { animation-delay:.32s !important; }
+@keyframes urxo-onboarding-text-in {
+  from { opacity:0; transform:translate3d(0,24px,0); filter:blur(5px); }
+  to { opacity:1; transform:translate3d(0,0,0); filter:blur(0); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .urxo-intro-scene.is-visible > h1,
+  .urxo-intro-scene.is-visible > .urxo-intro-welcome-brand,
+  .urxo-intro-scene.is-visible > h2,
+  .urxo-intro-scene.is-visible > .urxo-intro-info-lead,
+  .urxo-intro-scene.is-visible > .urxo-intro-features,
+  .urxo-intro-scene.is-visible > .urxo-intro-cta {
+    animation:none !important;
+    opacity:1 !important;
+    filter:none !important;
+    transform:none !important;
+  }
+}
