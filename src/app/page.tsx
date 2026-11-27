@@ -272,7 +272,7 @@ export default function Home() {
           <div className="space-y-4 text-sm text-zinc-500">
             <div className="flex items-center gap-3"><Database size={18} /> Market Data</div>
             <a href="/settings" className="flex items-center gap-3 transition hover:text-white"><Settings size={18} /> Settings</a>
-            <div className="flex items-center gap-3"><CircleHelp size={18} /> Help Center</div>
+            <Link href="/help" className="flex items-center gap-3 transition hover:text-white"><CircleHelp size={18} /> Help Center</Link>
           </div>
         </div>
 
