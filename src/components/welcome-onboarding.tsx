@@ -10,8 +10,8 @@ export default function WelcomeOnboarding() {
   const [entered, setEntered] = useState(false);
 
   useEffect(() => {
-    const introTimer = window.setTimeout(() => setStage(1), 900);
-    const detailsTimer = window.setTimeout(() => setStage(2), 1800);
+    const introTimer = window.setTimeout(() => setStage(1), 1300);
+    const detailsTimer = window.setTimeout(() => setStage(2), 2600);
     return () => {
       window.clearTimeout(introTimer);
       window.clearTimeout(detailsTimer);
