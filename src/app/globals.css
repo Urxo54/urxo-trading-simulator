@@ -42,71 +42,90 @@ html[data-theme="light"] [class*="bg-[#"],
 html[data-theme="light"] [class*="bg-black/"] { background-color: #ffffff !important; }
 html[data-theme="light"] [class*="bg-gradient"] { background: #ffffff !important; }
 
-/* First-visit URXO welcome experience */
-.urxo-welcome-backdrop { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; overflow-y:auto; padding:24px; background:rgba(3,5,9,.82); backdrop-filter:blur(16px); animation:urxo-backdrop-in .45s ease both; }
-.urxo-welcome-panel { position:relative; display:grid; width:min(100%,960px); min-height:560px; grid-template-columns:1.02fr .98fr; overflow:hidden; border:1px solid rgba(255,255,255,.13); border-radius:28px; background:#0d1016; color:#f8fafc; box-shadow:0 35px 120px rgba(0,0,0,.55); animation:urxo-panel-in .65s cubic-bezier(.2,.8,.2,1) both; }
-.urxo-welcome-close { position:absolute; z-index:5; top:18px; right:18px; display:grid; width:36px; height:36px; place-items:center; border:1px solid rgba(255,255,255,.15); border-radius:50%; background:rgba(255,255,255,.06); color:#cbd5e1; transition:background .2s,transform .2s; }
-.urxo-welcome-close:hover { transform:rotate(90deg); background:rgba(255,255,255,.14); }
-.urxo-welcome-visual { position:relative; display:flex; min-height:560px; flex-direction:column; justify-content:space-between; overflow:hidden; padding:38px; background:radial-gradient(ellipse at 48% 45%,#273142 0%,#151c28 42%,#0c111a 100%); }
-.urxo-welcome-grid { position:absolute; inset:0; opacity:.2; background-image:linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px); background-size:42px 42px; mask-image:linear-gradient(to bottom,transparent,#000 25%,#000 80%,transparent); }
-.urxo-welcome-orbit { position:absolute; left:50%; top:48%; width:390px; height:390px; border:1px solid rgba(255,255,255,.1); border-radius:50%; transform:translate(-50%,-50%); animation:urxo-orbit 22s linear infinite; }
-.urxo-welcome-orbit-two { width:510px; height:510px; border-style:dashed; border-color:rgba(255,255,255,.07); animation-direction:reverse; animation-duration:35s; }
-.urxo-welcome-brand { position:relative; z-index:1; display:flex; align-items:center; gap:9px; font-size:17px; font-weight:800; letter-spacing:.2em; }
-.urxo-welcome-brand svg { color:#fff; }
-.urxo-welcome-brand small { align-self:flex-end; margin:0 0 2px -3px; color:#8792a3; font-size:8px; font-weight:600; letter-spacing:.18em; }
-.urxo-welcome-chart { position:absolute; left:0; right:0; top:48%; width:100%; transform:translateY(-42%); overflow:visible; filter:drop-shadow(0 0 18px rgba(255,255,255,.12)); animation:urxo-chart-in 1.4s .2s ease both; }
-.urxo-welcome-visual-caption { position:relative; z-index:1; display:flex; justify-content:space-between; gap:12px; color:#9aa5b5; font-size:9px; font-weight:700; letter-spacing:.16em; }
-.urxo-welcome-content { display:flex; flex-direction:column; justify-content:center; padding:64px 48px 38px; animation:urxo-content-in .4s ease both; }
-.urxo-welcome-eyebrow { display:flex; align-items:center; gap:9px; color:#aab4c3; font-size:9px; font-weight:700; letter-spacing:.17em; }
-.urxo-welcome-eyebrow span { width:7px; height:7px; border-radius:50%; background:#dbe4f0; box-shadow:0 0 12px rgba(219,228,240,.7); }
-.urxo-welcome-heading-row { display:flex; align-items:flex-start; gap:14px; margin-top:25px; }
-.urxo-welcome-step-icon { display:grid; width:42px; height:42px; flex:0 0 42px; place-items:center; border:1px solid rgba(255,255,255,.14); border-radius:13px; background:rgba(255,255,255,.07); color:#fff; }
-.urxo-welcome-heading-row h2 { margin:0; max-width:370px; color:#fff; font-size:clamp(25px,3vw,34px); font-weight:650; line-height:1.13; letter-spacing:-.045em; }
-.urxo-welcome-description { margin:19px 0 0 56px; color:#9ba6b6; font-size:13px; line-height:1.85; }
-.urxo-welcome-points { display:grid; gap:15px; margin:30px 0 0 56px; padding:0; list-style:none; }
-.urxo-welcome-points li { display:flex; align-items:flex-start; gap:11px; color:#d5dbe4; font-size:12px; line-height:1.55; }
-.urxo-welcome-points li>span { display:grid; width:19px; height:19px; flex:0 0 19px; place-items:center; border:1px solid rgba(255,255,255,.18); border-radius:50%; color:#fff; }
-.urxo-welcome-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:45px 0 0 56px; }
-.urxo-welcome-progress { display:flex; gap:6px; }
-.urxo-welcome-progress span { width:19px; height:3px; border-radius:5px; background:rgba(255,255,255,.16); transition:width .25s,background .25s; }
-.urxo-welcome-progress span.active { width:30px; background:#f8fafc; }
-.urxo-welcome-actions { display:flex; align-items:center; gap:10px; }
-.urxo-welcome-back,.urxo-welcome-next { display:flex; align-items:center; justify-content:center; gap:9px; min-height:43px; padding:0 17px; border-radius:11px; font-size:12px; font-weight:650; transition:transform .2s,background .2s; }
-.urxo-welcome-back { border:1px solid rgba(255,255,255,.14); color:#cbd5e1; }
-.urxo-welcome-back:hover { background:rgba(255,255,255,.07); }
-.urxo-welcome-next { background:#f4f4f5; color:#101318; }
-.urxo-welcome-next:hover { transform:translateY(-2px); background:#dbe2eb; }
-.urxo-welcome-skip { align-self:flex-end; margin:17px 0 0; color:#687487; font-size:10px; transition:color .2s; }
-.urxo-welcome-skip:hover { color:#dbe2eb; }
-@keyframes urxo-backdrop-in { from { opacity:0; } to { opacity:1; } }
-@keyframes urxo-panel-in { from { opacity:0; transform:translateY(22px) scale(.975); } to { opacity:1; transform:translateY(0) scale(1); } }
-@keyframes urxo-content-in { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:translateY(0); } }
-@keyframes urxo-chart-in { from { opacity:0; transform:translate(-12px,-42%); } to { opacity:1; transform:translate(0,-42%); } }
-@keyframes urxo-orbit { from { rotate:0deg; } to { rotate:360deg; } }
-html[data-theme="light"] .urxo-welcome-panel { border-color:#dbe2eb; background:#fff; color:#18202d; }
-html[data-theme="light"] .urxo-welcome-content h2 { color:#18202d; }
-html[data-theme="light"] .urxo-welcome-description,html[data-theme="light"] .urxo-welcome-points li { color:#536176; }
-html[data-theme="light"] .urxo-welcome-eyebrow,html[data-theme="light"] .urxo-welcome-visual-caption { color:#aab4c3; }
-html[data-theme="light"] .urxo-welcome-back { border-color:#dbe2eb; color:#536176; }
-@media (max-width:720px) {
-  .urxo-welcome-backdrop { padding:12px; }
-  .urxo-welcome-panel { width:min(100%,520px); min-height:0; grid-template-columns:1fr; border-radius:22px; }
-  .urxo-welcome-visual { min-height:190px; padding:23px 25px; }
-  .urxo-welcome-orbit { top:58%; width:230px; height:230px; }
-  .urxo-welcome-orbit-two { width:300px; height:300px; }
-  .urxo-welcome-chart { top:59%; width:100%; }
-  .urxo-welcome-visual-caption { font-size:8px; }
-  .urxo-welcome-content { padding:32px 25px 24px; }
-  .urxo-welcome-heading-row { margin-top:18px; }
-  .urxo-welcome-heading-row h2 { font-size:27px; }
-  .urxo-welcome-description,.urxo-welcome-points,.urxo-welcome-footer { margin-left:0; }
-  .urxo-welcome-description { margin-top:15px; }
-  .urxo-welcome-points { margin-top:23px; }
-  .urxo-welcome-footer { margin-top:30px; }
-  .urxo-welcome-skip { margin-top:14px; }
-  .urxo-welcome-close { top:12px; right:12px; }
+
+/* Cinematic URXO entry experience — shown on every fresh page load */
+.urxo-intro { position:fixed; z-index:10000; inset:0; display:flex; flex-direction:column; overflow:hidden; padding:clamp(22px,4vw,54px) clamp(22px,6vw,88px) 25px; background:#080b10; color:#f3f6fa; isolation:isolate; animation:urxo-intro-in .9s ease both; }
+.urxo-intro-noise { position:absolute; z-index:-1; inset:0; pointer-events:none; opacity:.12; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.2'/%3E%3C/svg%3E"); }
+.urxo-intro-grid { position:absolute; z-index:-2; inset:0; opacity:.15; background-image:linear-gradient(rgba(185,204,222,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(185,204,222,.12) 1px,transparent 1px); background-size:76px 76px; mask-image:radial-gradient(ellipse at 50% 50%,#000 0%,transparent 78%); }
+.urxo-intro-glow { position:absolute; z-index:-1; width:42vw; height:42vw; border-radius:50%; filter:blur(110px); pointer-events:none; opacity:.09; }
+.urxo-intro-glow-a { top:15%; left:23%; background:#7896b5; animation:urxo-glow-breathe 9s ease-in-out infinite alternate; }
+.urxo-intro-glow-b { right:5%; bottom:-25%; width:30vw; height:30vw; background:#49637e; opacity:.07; animation:urxo-glow-breathe 12s ease-in-out infinite alternate-reverse; }
+.urxo-intro-top,.urxo-intro-bottom { position:relative; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+.urxo-intro-logo { display:flex; align-items:center; gap:10px; font-size:17px; font-weight:800; letter-spacing:.24em; }
+.urxo-intro-logo svg { color:#c5d3e1; filter:drop-shadow(0 0 7px rgba(205,222,239,.2)); }
+.urxo-intro-logo i { width:1px; height:17px; margin-left:5px; background:rgba(220,232,244,.25); }
+.urxo-intro-logo small,.urxo-intro-edition,.urxo-intro-bottom { color:#778493; font-size:9px; font-weight:600; letter-spacing:.19em; }
+.urxo-intro-edition b,.urxo-intro-bottom b { color:#c2ceda; font-weight:500; }
+.urxo-intro-main { position:relative; display:flex; flex:1; align-items:center; width:min(100%,1250px); margin:0 auto; }
+.urxo-intro-copy { position:relative; z-index:2; width:min(650px,64%); padding:25px 0 30px 4.5%; animation:urxo-copy-rise 1.15s .15s cubic-bezier(.2,.7,.2,1) both; }
+.urxo-intro-kicker { display:flex; align-items:center; gap:11px; color:#9aa8b7; font-size:10px; font-weight:650; letter-spacing:.2em; }
+.urxo-intro-kicker span { width:6px; height:6px; border-radius:50%; background:#c7d7e7; box-shadow:0 0 10px rgba(199,215,231,.55); animation:urxo-status-pulse 3.2s ease-in-out infinite; }
+.urxo-intro-copy h1 { margin:30px 0 22px; color:#f4f6f9; font-size:clamp(54px,8.2vw,112px); font-weight:520; line-height:.99; letter-spacing:-.075em; }
+.urxo-intro-copy h1 em { color:#aab8c7; font-style:normal; text-shadow:0 0 35px rgba(177,199,221,.13); }
+.urxo-intro-lead { max-width:510px; margin:0; color:#e0e6ed; font-size:clamp(17px,2vw,22px); font-weight:400; line-height:1.5; letter-spacing:-.025em; }
+.urxo-intro-description { max-width:490px; margin:16px 0 0; color:#8996a5; font-size:13px; line-height:1.9; }
+.urxo-intro-cta { display:inline-flex; align-items:center; gap:34px; min-height:53px; margin-top:34px; padding:0 20px; border:1px solid rgba(220,233,246,.25); border-radius:3px; background:rgba(213,227,241,.94); color:#101821; font-size:12px; font-weight:700; letter-spacing:.015em; transition:background .25s,transform .25s,box-shadow .25s; }
+.urxo-intro-cta:hover { transform:translateY(-2px); background:#fff; box-shadow:0 8px 34px rgba(194,216,237,.12); }
+.urxo-intro-cta svg { transition:transform .25s; }
+.urxo-intro-cta:hover svg { transform:translateX(4px); }
+.urxo-intro-proof { display:flex; align-items:center; gap:15px; margin-top:48px; color:#778493; font-size:9px; letter-spacing:.12em; }
+.urxo-intro-proof b { margin-left:5px; color:#bac5d0; font-weight:600; }
+.urxo-intro-proof i { width:23px; height:1px; background:rgba(190,207,224,.22); }
+.urxo-intro-chart { position:absolute; top:50%; right:-5%; width:69%; height:min(47vh,390px); transform:translateY(-37%); opacity:.7; animation:urxo-chart-reveal 2.2s .25s ease both; }
+.urxo-intro-chart-glow { position:absolute; inset:22% 0 0 10%; background:radial-gradient(ellipse,rgba(167,193,219,.1),transparent 65%); filter:blur(35px); }
+.urxo-intro-chart svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+.urxo-intro-area { fill:url(#urxo-intro-area); opacity:0; animation:urxo-area-in 2.6s 1.4s ease forwards; }
+.urxo-intro-line { fill:none; stroke:url(#urxo-intro-line); stroke-width:1.65; vector-effect:non-scaling-stroke; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:1800; stroke-dashoffset:1800; animation:urxo-line-draw 3.4s .45s cubic-bezier(.3,.6,.25,1) forwards; filter:drop-shadow(0 0 5px rgba(215,230,245,.25)); }
+.urxo-intro-dot { fill:#edf4fb; opacity:0; filter:drop-shadow(0 0 7px rgba(235,245,255,.7)); animation:urxo-dot-appear .6s 3.55s ease forwards,urxo-dot-pulse 3s 4.2s ease-in-out infinite; }
+.urxo-intro-chart-label { position:absolute; right:4%; bottom:3%; left:7%; display:flex; justify-content:space-between; color:rgba(157,174,191,.5); font-size:8px; letter-spacing:.17em; }
+.urxo-intro-bottom { padding-top:16px; border-top:1px solid rgba(190,207,224,.1); }
+@keyframes urxo-intro-in { from { opacity:0; } to { opacity:1; } }
+@keyframes urxo-copy-rise { from { opacity:0; transform:translateY(19px); } to { opacity:1; transform:translateY(0); } }
+@keyframes urxo-chart-reveal { from { opacity:0; transform:translate(25px,-37%); } to { opacity:.7; transform:translate(0,-37%); } }
+@keyframes urxo-line-draw { to { stroke-dashoffset:0; } }
+@keyframes urxo-area-in { to { opacity:1; } }
+@keyframes urxo-dot-appear { to { opacity:.9; } }
+@keyframes urxo-dot-pulse { 0%,100% { opacity:.65; } 50% { opacity:1; } }
+@keyframes urxo-status-pulse { 0%,100% { opacity:.55; box-shadow:0 0 5px rgba(199,215,231,.25); } 50% { opacity:1; box-shadow:0 0 12px rgba(199,215,231,.7); } }
+@keyframes urxo-glow-breathe { from { transform:scale(.92); opacity:.055; } to { transform:scale(1.08); opacity:.12; } }
+@media (max-width:760px) {
+  .urxo-intro { padding:23px 22px 18px; }
+  .urxo-intro-edition { display:none; }
+  .urxo-intro-logo small { font-size:7px; }
+  .urxo-intro-main { align-items:flex-end; padding-bottom:7vh; }
+  .urxo-intro-copy { width:100%; padding:0 0 0 2px; }
+  .urxo-intro-copy h1 { margin:23px 0 17px; font-size:clamp(53px,13vw,78px); }
+  .urxo-intro-lead { max-width:420px; font-size:18px; }
+  .urxo-intro-description { max-width:440px; font-size:12px; }
+  .urxo-intro-chart { top:23%; right:-28%; width:125%; height:34vh; opacity:.47; transform:translateY(-15%); }
+  .urxo-intro-chart-label { font-size:7px; }
+  .urxo-intro-proof { flex-wrap:wrap; gap:9px; margin-top:35px; font-size:8px; }
+  .urxo-intro-proof i { width:12px; }
+  .urxo-intro-bottom { font-size:7px; letter-spacing:.11em; }
+  .urxo-intro-bottom span:last-child { display:none; }
+}
+@media (max-height:650px) and (min-width:761px) {
+  .urxo-intro-copy h1 { margin:18px 0 12px; font-size:clamp(48px,7vw,78px); }
+  .urxo-intro-description { margin-top:10px; }
+  .urxo-intro-cta { margin-top:20px; }
+  .urxo-intro-proof { margin-top:25px; }
 }
 @media (prefers-reduced-motion:reduce) {
-  .urxo-welcome-backdrop,.urxo-welcome-panel,.urxo-welcome-content,.urxo-welcome-chart,.urxo-welcome-orbit { animation:none !important; }
-  .urxo-welcome-next,.urxo-welcome-back,.urxo-welcome-close { transition:none; }
+  .urxo-intro,.urxo-intro-copy,.urxo-intro-chart,.urxo-intro-line,.urxo-intro-area,.urxo-intro-dot,.urxo-intro-glow,.urxo-intro-kicker span { animation:none !important; }
+  .urxo-intro-line { stroke-dashoffset:0; }
+  .urxo-intro-area,.urxo-intro-dot { opacity:.8; }
+  .urxo-intro-cta { transition:none; }
 }
+html[data-theme="light"] .urxo-intro { background:#f3f6fa; color:#182331; }
+html[data-theme="light"] .urxo-intro-grid { opacity:.3; background-image:linear-gradient(rgba(65,85,108,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(65,85,108,.12) 1px,transparent 1px); }
+html[data-theme="light"] .urxo-intro-glow-a { background:#a6bacf; opacity:.12; }
+html[data-theme="light"] .urxo-intro-logo,html[data-theme="light"] .urxo-intro-copy h1 { color:#182331; }
+html[data-theme="light"] .urxo-intro-logo svg { color:#526a83; }
+html[data-theme="light"] .urxo-intro-logo small,html[data-theme="light"] .urxo-intro-edition,html[data-theme="light"] .urxo-intro-bottom { color:#78889a; }
+html[data-theme="light"] .urxo-intro-copy h1 em { color:#61768c; }
+html[data-theme="light"] .urxo-intro-lead { color:#34465a; }
+html[data-theme="light"] .urxo-intro-description { color:#66788c; }
+html[data-theme="light"] .urxo-intro-proof { color:#718195; }
+html[data-theme="light"] .urxo-intro-proof b { color:#40546a; }
+html[data-theme="light"] .urxo-intro-chart-label { color:rgba(83,105,129,.56); }
+html[data-theme="light"] .urxo-intro-line { filter:drop-shadow(0 0 5px rgba(72,103,135,.2)); }
