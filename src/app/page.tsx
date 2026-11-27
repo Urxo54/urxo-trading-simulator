@@ -247,7 +247,7 @@ export default function Home() {
                   ? "/statistics"
                   : "/history";
             return (
-              <a
+              <Link
                 key={item.label}
                 href={href}
                 className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition-colors ${
@@ -272,7 +272,7 @@ export default function Home() {
           </p>
           <div className="space-y-4 text-sm text-zinc-500">
             <div className="flex items-center gap-3"><Database size={18} /> Market Data</div>
-            <a href="/settings" className="flex items-center gap-3 transition hover:text-white"><Settings size={18} /> Settings</a>
+            <Link href="/settings" className="flex items-center gap-3 transition hover:text-white"><Settings size={18} /> Settings</Link>
             <Link href="/help" className="flex items-center gap-3 transition hover:text-white"><CircleHelp size={18} /> Help Center</Link>
           </div>
         </div>
@@ -349,7 +349,7 @@ export default function Home() {
                   Choose a market, load a historical period and test your trading decisions
                   in a realistic environment.
                 </p>
-                <a href="/training" className="mt-8 flex w-fit items-center gap-3 rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-black transition hover:bg-zinc-200">
+                <Link href="/training" className="mt-8 flex w-fit items-center gap-3 rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-black transition hover:bg-zinc-200">
                   <Play size={17} fill="currentColor" />
                   Start Training
                   <ChevronRight size={17} />
