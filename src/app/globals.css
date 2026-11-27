@@ -118,8 +118,5 @@ html[data-theme="light"] [class*="bg-gradient"] { background: #ffffff !important
   .urxo-intro-info-lead { font-size:13px; }
   .urxo-intro-features { gap:10px; }
 }
-@media (prefers-reduced-motion:reduce) {
-  .urxo-intro-scene.is-visible,.urxo-intro-scene.is-exiting { animation:none; }
-  .urxo-intro-scene.is-visible { opacity:1; visibility:visible; transform:translate(-50%,-50%); filter:none; }
-  .urxo-intro-scene.is-exiting { opacity:0; visibility:hidden; }
-}
+.urxo-intro-scene.is-visible { will-change:opacity,transform,filter; }
+.urxo-intro-scene.is-exiting { will-change:opacity,transform,filter; }
