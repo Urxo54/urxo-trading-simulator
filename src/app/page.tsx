@@ -105,6 +105,21 @@ export default function Home() {
   }
 
   useEffect(() => {
+    // Warm every dashboard destination while the user is still on the dashboard.
+    // The Training client is a separate, heavy chunk, so preload it explicitly too.
+    const timer = window.setTimeout(() => {
+      ["/training", "/statistics", "/history", "/settings", "/help"].forEach((href) => {
+        router.prefetch(href);
+      });
+      void import("./training/training-client").catch(() => {
+        // A later navigation can retry the chunk if background preloading fails.
+      });
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [router]);
+
+  useEffect(() => {
     let active = true;
 
     async function refreshMarketData() {
