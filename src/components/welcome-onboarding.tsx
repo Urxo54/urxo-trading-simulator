@@ -12,6 +12,13 @@ export default function WelcomeOnboarding() {
   const [entered, setEntered] = useState(false);
   const [closing, setClosing] = useState(false);
 
+  // A dismissed intro stays dismissed across full-page navigations in this tab.
+  useEffect(() => {
+    if (window.sessionStorage.getItem("urxo-intro-completed") === "true") {
+      setEntered(true);
+    }
+  }, []);
+
   // Start the first animation only after hydration and an actual browser paint.
   // Otherwise the CSS animation can finish while Next.js is still hydrating.
   useEffect(() => {
@@ -82,7 +89,7 @@ export default function WelcomeOnboarding() {
           <p className="urxo-intro-info-lead">
             Заходи в URXO. Выбирай рынок, анализируй график и тренируй собственную систему.
           </p>
-          <button type="button" className="urxo-intro-cta" onClick={() => setClosing(true)}>
+          <button type="button" className="urxo-intro-cta" onClick={() => { window.sessionStorage.setItem("urxo-intro-completed", "true"); setClosing(true); }}>
             Войти в приложение <ArrowRight size={17} />
           </button>
         </section>
