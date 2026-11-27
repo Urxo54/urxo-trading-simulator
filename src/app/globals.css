@@ -129,3 +129,17 @@ html[data-theme="light"] [class*="bg-gradient"] { background: #ffffff !important
 }
 .urxo-intro-scene.is-visible { will-change:opacity,transform; }
 .urxo-intro-scene.is-exiting { will-change:opacity,transform; }
+
+
+/* Fade the incoming page on both client-side and full-page navigation. */
+.urxo-route-transition {
+  min-height: 100vh;
+  animation: urxo-route-fade-in .48s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes urxo-route-fade-in {
+  from { opacity: 0; transform: translate3d(0, 7px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .urxo-route-transition { animation-duration: .01ms; }
+}
