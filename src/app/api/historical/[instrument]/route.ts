@@ -26,9 +26,16 @@ const intervals: Record<Timeframe, number> = {
   H1: 60 * 60,
 };
 
+// Keep parsed candle arrays between requests. A promise cache also prevents
+// simultaneous requests from parsing the same large CSV more than once.
+const candleCache = new Map<string, { signature: string; candles: Candle[] }>();
+const inFlight = new Map<string, Promise<Candle[]>>();
+
 function bucketStart(timestamp: number, timeframe: Timeframe): number {
   const date = new Date(timestamp * 1000);
-  if (timeframe === "MN1") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1) / 1000;
+  if (timeframe === "MN1") {
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1) / 1000;
+  }
   if (timeframe === "W1") {
     const daysSinceMonday = (date.getUTCDay() + 6) % 7;
     date.setUTCDate(date.getUTCDate() - daysSinceMonday);
@@ -38,10 +45,17 @@ function bucketStart(timestamp: number, timeframe: Timeframe): number {
   return Math.floor(timestamp / intervals[timeframe]) * intervals[timeframe];
 }
 
-function aggregateCandles(rows: string[], timeframe: Timeframe): Candle[] {
-  const candles = new Map<number, Candle>();
+// Dukascopy files are chronological, so buckets can be aggregated in one pass.
+// This avoids allocating a Map and sorting every candle on every page visit.
+function aggregateCandles(csv: string, timeframe: Timeframe): Candle[] {
+  const lines = csv.split(/\r?\n/);
+  const candles: Candle[] = [];
+  let current: Candle | null = null;
+  let currentBucket = -1;
 
-  for (const row of rows) {
+  for (let index = 1; index < lines.length; index += 1) {
+    const row = lines[index];
+    if (!row) continue;
     const columns = row.split(",");
     if (columns.length < 5) continue;
 
@@ -57,30 +71,47 @@ function aggregateCandles(rows: string[], timeframe: Timeframe): Candle[] {
       !Number.isFinite(high) ||
       !Number.isFinite(low) ||
       !Number.isFinite(close)
-    ) {
-      continue;
-    }
+    ) continue;
 
     const timestamp = Math.floor(timestampMs / 1000);
-    const bucketTime = bucketStart(timestamp, timeframe);
-    const existing = candles.get(bucketTime);
+    const bucket = bucketStart(timestamp, timeframe);
 
-    if (!existing) {
-      candles.set(bucketTime, {
-        time: bucketTime,
-        open,
-        high,
-        low,
-        close,
-      });
-    } else {
-      existing.high = Math.max(existing.high, high);
-      existing.low = Math.min(existing.low, low);
-      existing.close = close;
+    if (bucket !== currentBucket) {
+      current = { time: bucket, open, high, low, close };
+      candles.push(current);
+      currentBucket = bucket;
+    } else if (current) {
+      current.high = Math.max(current.high, high);
+      current.low = Math.min(current.low, low);
+      current.close = close;
     }
   }
 
-  return Array.from(candles.values()).sort((a, b) => a.time - b.time);
+  return candles;
+}
+
+async function getCandles(instrument: Instrument, timeframe: Timeframe): Promise<Candle[]> {
+  const key = `${instrument}:${timeframe}`;
+  const filePath = path.join(process.cwd(), "data", "historical", instruments[instrument]);
+  const stat = await import("node:fs/promises").then(({ stat }) => stat(filePath));
+  const signature = `${stat.size}:${stat.mtimeMs}`;
+  const cached = candleCache.get(key);
+
+  if (cached?.signature === signature) return cached.candles;
+
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+
+  const task = readFile(filePath, "utf8").then((csv) => {
+    const candles = aggregateCandles(csv, timeframe);
+    candleCache.set(key, { signature, candles });
+    return candles;
+  }).finally(() => {
+    inFlight.delete(key);
+  });
+
+  inFlight.set(key, task);
+  return task;
 }
 
 export async function GET(
@@ -102,18 +133,9 @@ export async function GET(
   }
 
   const timeframe = requestedTimeframe as Timeframe;
-  const filePath = path.join(
-    process.cwd(),
-    "data",
-    "historical",
-    instruments[instrument],
-  );
 
   try {
-    const csv = await readFile(filePath, "utf8");
-    const rows = csv.trim().split(/\r?\n/).slice(1);
-    const candles = aggregateCandles(rows, timeframe);
-
+    const candles = await getCandles(instrument, timeframe);
     if (candles.length === 0) {
       return Response.json(
         { error: "The historical file contains no valid candles." },
@@ -128,6 +150,10 @@ export async function GET(
       dateRange: "2024-01-01 to 2026-01-01",
       count: candles.length,
       candles,
+    }, {
+      headers: {
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+      },
     });
   } catch (error) {
     console.error("Historical data load failed:", error);
