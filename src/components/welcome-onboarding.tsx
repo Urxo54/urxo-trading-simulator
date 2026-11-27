@@ -5,7 +5,13 @@ import { Activity, ArrowRight, CandlestickChart, ChartNoAxesCombined, X } from "
 
 const STORAGE_KEY = "urxo-welcome-seen";
 const subscribeToWelcome = () => () => {};
-const getWelcomeSnapshot = () => window.localStorage.getItem(STORAGE_KEY) !== "1";
+const getWelcomeSnapshot = () => {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) !== "1";
+  } catch {
+    return true;
+  }
+};
 const getServerWelcomeSnapshot = () => false;
 
 const slides = [
