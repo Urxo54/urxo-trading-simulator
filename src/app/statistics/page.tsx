@@ -38,7 +38,7 @@ export default function StatisticsPage() {
       <aside className="fixed inset-y-0 left-0 hidden w-[245px] flex-col border-r border-white/[0.08] bg-[#0d0d0d] p-6 lg:flex">
         <Link href="/" className="mb-10 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black"><Activity size={23}/></div><div><h1 className="text-lg font-bold tracking-[0.18em]">URXO</h1><p className="text-[10px] tracking-[0.2em] text-zinc-500">TRADING LAB</p></div></Link>
         <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-600">Workspace</p>
-        <nav className="space-y-2">{nav.map(({label,href,Icon})=><Link key={label} href={href} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition-colors ${label==="Statistics"?"bg-white/[0.09] font-medium text-white":"text-zinc-500 hover:bg-white/[0.05] hover:text-white"}`}><Icon size={18}/>{label}</a>)}</nav>
+        <nav className="space-y-2">{nav.map(({label,href,Icon})=><Link key={label} href={href} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition-colors ${label==="Statistics"?"bg-white/[0.09] font-medium text-white":"text-zinc-500 hover:bg-white/[0.05] hover:text-white"}`}><Icon size={18}/>{label}</Link>)}</nav>
       </aside>
       <section className="min-h-screen lg:ml-[245px]">
         <header className="flex h-[76px] items-center justify-between border-b border-white/[0.08] px-6 md:px-10"><div><p className="text-xs text-zinc-600">Workspace / Statistics</p><h2 className="mt-1 text-lg font-semibold">Statistics</h2></div><div className="rounded-xl border border-white/10 px-4 py-2 text-sm"><span className="text-zinc-500">Balance </span><b>{account.balance} pts</b></div></header>
