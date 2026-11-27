@@ -393,3 +393,14 @@ html[data-theme="light"] .urxo-intro-progress i.active { background:#526a83; }
 @media (prefers-reduced-motion:reduce) {
   .urxo-intro-scene,.urxo-intro-scene.is-visible { transition:none !important; animation:none !important; }
 }
+
+
+/* Force a visible entrance animation on every newly revealed onboarding block. */
+.urxo-intro-scene.is-visible {
+  animation:urxo-onboarding-reveal .8s cubic-bezier(.2,.7,.2,1) both !important;
+  transition:none !important;
+}
+@keyframes urxo-onboarding-reveal {
+  0% { opacity:0; transform:translate3d(0,16px,0) !important; }
+  100% { opacity:1; transform:translate3d(0,0,0) !important; }
+}
