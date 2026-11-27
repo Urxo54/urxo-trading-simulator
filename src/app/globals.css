@@ -60,7 +60,7 @@ html[data-theme="light"] [class*="bg-gradient"] { background: #ffffff !important
 }
 .urxo-intro-scene.is-visible {
   visibility:visible; pointer-events:auto;
-  animation:urxo-scene-in 1.25s cubic-bezier(.22,1,.36,1) both;
+  animation:urxo-scene-in 2.1s cubic-bezier(.22,1,.36,1) both;
 }
 .urxo-intro-scene.is-exiting {
   visibility:visible; pointer-events:none;
