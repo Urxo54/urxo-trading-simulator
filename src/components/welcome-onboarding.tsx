@@ -37,6 +37,8 @@ export default function WelcomeOnboarding() {
             </defs>
             <path className="urxo-intro-area" d="M0 235 L75 218 125 230 180 176 225 193 280 150 330 170 390 112 435 132 490 95 545 125 600 65 650 88 705 45 755 78 810 32 860 54 920 18 1000 28 V300 H0Z" />
             <path className="urxo-intro-line" d="M0 235 L75 218 125 230 180 176 225 193 280 150 330 170 390 112 435 132 490 95 545 125 600 65 650 88 705 45 755 78 810 32 860 54 920 18 1000 28" />
+            <path className="urxo-intro-trace" d="M0 235 L75 218 125 230 180 176 225 193 280 150 330 170 390 112 435 132 490 95 545 125 600 65 650 88 705 45 755 78 810 32 860 54 920 18 1000 28" />
+            <circle className="urxo-intro-runner" r="5"><animateMotion dur="7s" repeatCount="indefinite" rotate="auto" path="M0 235 L75 218 125 230 180 176 225 193 280 150 330 170 390 112 435 132 490 95 545 125 600 65 650 88 705 45 755 78 810 32 860 54 920 18 1000 28" /></circle>
             <circle className="urxo-intro-dot" cx="1000" cy="28" r="4" />
           </svg>
           <div className="urxo-intro-chart-label"><span>PRICE ACTION</span><span>HISTORICAL DATA · LIVE DECISIONS</span></div>
