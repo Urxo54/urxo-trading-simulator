@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, ArrowRight, BarChart3, CandlestickChart, ChartNoAxesCombined, Clock3, X } from "lucide-react";
+import { Activity, ArrowRight, CandlestickChart, ChartNoAxesCombined, X } from "lucide-react";
 
 const STORAGE_KEY = "urxo-welcome-seen";
 
