@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, ArrowRight, BarChart3, Crosshair } from "lucide-react";
+import { ArrowRight, BarChart3, Crosshair } from "lucide-react";
 
 type IntroStage = 0 | 1 | 2;
 
