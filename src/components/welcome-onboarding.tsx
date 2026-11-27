@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Activity, ArrowRight, BarChart3, Crosshair, LineChart } from "lucide-react";
 
 type IntroStage = 0 | 1 | 2;
 
 export default function WelcomeOnboarding() {
   const [stage, setStage] = useState<IntroStage>(0);
+  const introRef = useRef<HTMLDivElement>(null);
   const [entered, setEntered] = useState(false);
 
   useEffect(() => {
@@ -18,10 +19,42 @@ export default function WelcomeOnboarding() {
     };
   }, []);
 
+  // Trigger the reveal with the Web Animations API after React commits each stage.
+  // This avoids the long chain of legacy CSS overrides on the onboarding screen.
+  useEffect(() => {
+    const root = introRef.current;
+    if (!root) return;
+
+    const scene = root.querySelectorAll<HTMLElement>(".urxo-intro-scene")[stage];
+    if (!scene) return;
+
+    const items = Array.from(scene.children).filter((node): node is HTMLElement => {
+      return node instanceof HTMLElement &&
+        !node.classList.contains("urxo-intro-kicker") &&
+        !node.classList.contains("urxo-intro-scene-index");
+    });
+
+    items.forEach((item, index) => {
+      item.getAnimations().forEach((animation) => animation.cancel());
+      item.animate(
+        [
+          { opacity: 0, transform: "translate3d(0, 30px, 0)", filter: "blur(7px)" },
+          { opacity: 1, transform: "translate3d(0, 0, 0)", filter: "blur(0)" },
+        ],
+        {
+          duration: 1050,
+          delay: index * 180,
+          easing: "cubic-bezier(.16, 1, .3, 1)",
+          fill: "both",
+        },
+      );
+    });
+  }, [stage]);
+
   if (entered) return null;
 
   return (
-    <div className={"urxo-intro urxo-intro-stage-" + stage} role="dialog" aria-modal="true" aria-labelledby="urxo-intro-title">
+    <div ref={introRef} className={"urxo-intro urxo-intro-stage-" + stage} role="dialog" aria-modal="true" aria-labelledby="urxo-intro-title">
       <div className="urxo-intro-noise" />
       <div className="urxo-intro-grid" />
       <div className="urxo-intro-glow urxo-intro-glow-a" />
