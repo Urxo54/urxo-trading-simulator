@@ -352,3 +352,20 @@ html[data-theme="light"] .urxo-intro-progress i.active { background:#526a83; }
 @media (prefers-reduced-motion:reduce) {
   .urxo-intro-scene.is-visible { animation:none !important; }
 }
+
+
+/* Restore the original soft scene transitions while keeping revealed blocks stacked. */
+.urxo-intro-scene {
+  transition: opacity 2s ease, transform 2s cubic-bezier(.2,.7,.2,1), visibility 0s linear 2s !important;
+  transform:translate3d(0,22px,0) !important;
+}
+.urxo-intro-scene.is-visible {
+  opacity:1 !important;
+  visibility:visible !important;
+  transform:translate3d(0,0,0) !important;
+  transition:opacity 2s ease, transform 2s cubic-bezier(.2,.7,.2,1), visibility 0s !important;
+  animation:none !important;
+}
+.urxo-intro-scene:first-of-type.is-visible {
+  animation:urxo-stack-in 2s cubic-bezier(.2,.7,.2,1) both !important;
+}
