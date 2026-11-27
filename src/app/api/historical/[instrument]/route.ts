@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 type Instrument = "eurusd" | "xauusd" | "usatechidxusd";
@@ -93,8 +93,8 @@ function aggregateCandles(csv: string, timeframe: Timeframe): Candle[] {
 async function getCandles(instrument: Instrument, timeframe: Timeframe): Promise<Candle[]> {
   const key = `${instrument}:${timeframe}`;
   const filePath = path.join(process.cwd(), "data", "historical", instruments[instrument]);
-  const stat = await import("node:fs/promises").then(({ stat }) => stat(filePath));
-  const signature = `${stat.size}:${stat.mtimeMs}`;
+  const fileStats = await stat(filePath);
+  const signature = `${fileStats.size}:${fileStats.mtimeMs}`;
   const cached = candleCache.get(key);
 
   if (cached?.signature === signature) return cached.candles;
