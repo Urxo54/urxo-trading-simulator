@@ -10,6 +10,7 @@ export default function WelcomeOnboarding() {
   const [stage, setStage] = useState<IntroStage>(0);
   const [exitingStage, setExitingStage] = useState<IntroStage | null>(null);
   const [entered, setEntered] = useState(false);
+  const [closing, setClosing] = useState(false);
 
   // Start the first animation only after hydration and an actual browser paint.
   // Otherwise the CSS animation can finish while Next.js is still hydrating.
@@ -41,6 +42,12 @@ export default function WelcomeOnboarding() {
     };
   }, [ready]);
 
+  useEffect(() => {
+    if (!closing) return;
+    const closeTimer = window.setTimeout(() => setEntered(true), 750);
+    return () => window.clearTimeout(closeTimer);
+  }, [closing]);
+
   if (entered) return null;
 
   const sceneClass = (index: IntroStage) => {
@@ -51,7 +58,7 @@ export default function WelcomeOnboarding() {
   };
 
   return (
-    <div className="urxo-intro" role="dialog" aria-modal="true" aria-labelledby="urxo-intro-title">
+    <div className={"urxo-intro" + (closing ? " is-closing" : "")} role="dialog" aria-modal="true" aria-labelledby="urxo-intro-title">
       <main className="urxo-intro-main">
         <section className={"urxo-intro-scene " + sceneClass(0)} aria-hidden={!ready || stage !== 0}>
           <h1 id="urxo-intro-title">Добро пожаловать</h1>
@@ -75,7 +82,7 @@ export default function WelcomeOnboarding() {
           <p className="urxo-intro-info-lead">
             Заходи в URXO. Выбирай рынок, анализируй график и тренируй собственную систему.
           </p>
-          <button type="button" className="urxo-intro-cta" onClick={() => setEntered(true)}>
+          <button type="button" className="urxo-intro-cta" onClick={() => setClosing(true)}>
             Войти в приложение <ArrowRight size={17} />
           </button>
         </section>
