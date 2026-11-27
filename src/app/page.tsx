@@ -261,7 +261,7 @@ export default function Home() {
                 {item.active && (
                   <div className="ml-auto h-1.5 w-1.5 rounded-full bg-white" />
                 )}
-              </a>
+              </Link>
             );
           })}
         </nav>
@@ -353,7 +353,7 @@ export default function Home() {
                   <Play size={17} fill="currentColor" />
                   Start Training
                   <ChevronRight size={17} />
-                </a>
+                </Link>
               </div>
             </div>
 
