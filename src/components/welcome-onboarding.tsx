@@ -29,11 +29,11 @@ export default function WelcomeOnboarding() {
     const firstTimer = window.setTimeout(() => {
       setExitingStage(0);
       setStage(1);
-    }, 1400);
+    }, 1700);
     const secondTimer = window.setTimeout(() => {
       setExitingStage(1);
       setStage(2);
-    }, 2800);
+    }, 3400);
 
     return () => {
       window.clearTimeout(firstTimer);
