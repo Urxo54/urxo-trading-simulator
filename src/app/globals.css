@@ -129,3 +129,26 @@ html[data-theme="light"] .urxo-intro-proof { color:#718195; }
 html[data-theme="light"] .urxo-intro-proof b { color:#40546a; }
 html[data-theme="light"] .urxo-intro-chart-label { color:rgba(83,105,129,.56); }
 html[data-theme="light"] .urxo-intro-line { filter:drop-shadow(0 0 5px rgba(72,103,135,.2)); }
+
+
+/* Continuous motion: the welcome screen is an animated scene, not a static hero. */
+.urxo-intro-grid { background-position:0 0; animation:urxo-grid-drift 28s linear infinite; }
+.urxo-intro-chart { animation:urxo-chart-reveal 2.2s .25s ease both,urxo-chart-float 8s 2.5s ease-in-out infinite; }
+.urxo-intro-trace { fill:none; stroke:#f0f6fc; stroke-width:2.4; vector-effect:non-scaling-stroke; stroke-linecap:round; stroke-dasharray:2 25; stroke-dashoffset:0; opacity:0; filter:drop-shadow(0 0 7px rgba(226,240,255,.9)); animation:urxo-trace-flow 1.15s 3.3s linear infinite,urxo-trace-in .8s 3.3s ease forwards; }
+.urxo-intro-runner { fill:#fff; opacity:.95; filter:drop-shadow(0 0 5px #dcecff) drop-shadow(0 0 13px rgba(207,229,250,.8)); }
+.urxo-intro-chart-glow { animation:urxo-chart-glow 5s ease-in-out infinite alternate; }
+.urxo-intro-copy { animation:urxo-copy-rise 1.15s .15s cubic-bezier(.2,.7,.2,1) both,urxo-copy-breathe 7s 2s ease-in-out infinite; }
+.urxo-intro-cta { animation:urxo-cta-glint 6s 2s ease-in-out infinite; }
+@keyframes urxo-grid-drift { from { background-position:0 0; } to { background-position:76px 76px; } }
+@keyframes urxo-chart-float { 0%,100% { margin-top:0; } 50% { margin-top:-9px; } }
+@keyframes urxo-trace-flow { to { stroke-dashoffset:-108; } }
+@keyframes urxo-trace-in { to { opacity:.9; } }
+@keyframes urxo-chart-glow { from { opacity:.45; transform:scale(.92); } to { opacity:1; transform:scale(1.08); } }
+@keyframes urxo-copy-breathe { 0%,100% { filter:brightness(1); } 50% { filter:brightness(1.055); } }
+@keyframes urxo-cta-glint { 0%,75%,100% { box-shadow:0 0 0 rgba(194,216,237,0); } 86% { box-shadow:0 0 24px rgba(194,216,237,.18); } }
+html[data-theme="light"] .urxo-intro-trace { stroke:#526d89; filter:drop-shadow(0 0 7px rgba(82,109,137,.55)); }
+html[data-theme="light"] .urxo-intro-runner { fill:#405d7b; filter:drop-shadow(0 0 5px rgba(64,93,123,.7)); }
+@media (prefers-reduced-motion:reduce) {
+  .urxo-intro-grid,.urxo-intro-chart,.urxo-intro-trace,.urxo-intro-runner,.urxo-intro-chart-glow,.urxo-intro-copy,.urxo-intro-cta { animation:none !important; }
+  .urxo-intro-trace { opacity:.75; }
+}
