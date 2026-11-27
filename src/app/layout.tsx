@@ -1,6 +1,7 @@
 
 import type { Metadata } from "next";
 import ThemeProvider from "@/components/theme-provider";
+import WelcomeOnboarding from "@/components/welcome-onboarding";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,7 +15,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
-      <body><ThemeProvider>{children}</ThemeProvider></body>
+      <body><ThemeProvider>{children}<WelcomeOnboarding /></ThemeProvider></body>
     </html>
   );
 }
