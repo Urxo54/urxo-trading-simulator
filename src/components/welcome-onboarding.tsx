@@ -1,23 +1,35 @@
 "use client";
 
-import { useState } from "react";
-import { Activity, ArrowRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Activity, ArrowRight, BarChart3, Crosshair, LineChart } from "lucide-react";
+
+type IntroStage = 0 | 1 | 2;
 
 export default function WelcomeOnboarding() {
+  const [stage, setStage] = useState<IntroStage>(0);
   const [entered, setEntered] = useState(false);
+
+  useEffect(() => {
+    const introTimer = window.setTimeout(() => setStage(1), 3600);
+    const detailsTimer = window.setTimeout(() => setStage(2), 8900);
+    return () => {
+      window.clearTimeout(introTimer);
+      window.clearTimeout(detailsTimer);
+    };
+  }, []);
 
   if (entered) return null;
 
   return (
-    <div className="urxo-intro" role="dialog" aria-modal="true" aria-labelledby="urxo-intro-title">
+    <div className={"urxo-intro urxo-intro-stage-" + stage} role="dialog" aria-modal="true" aria-labelledby="urxo-intro-title">
       <div className="urxo-intro-noise" />
       <div className="urxo-intro-grid" />
       <div className="urxo-intro-glow urxo-intro-glow-a" />
       <div className="urxo-intro-glow urxo-intro-glow-b" />
 
       <div className="urxo-intro-top">
-        <div className="urxo-intro-logo"><Activity size={18} strokeWidth={1.7} /><span>URXO</span><i /> <small>TRADING SIMULATOR</small></div>
-        <span className="urxo-intro-edition">MARKET REPLAY EXPERIENCE <b> / 2026</b></span>
+        <div className="urxo-intro-logo"><Activity size={18} strokeWidth={1.7} /><span>URXO</span><i /><small>TRADING SIMULATOR</small></div>
+        <span className="urxo-intro-edition">MARKET REPLAY EXPERIENCE <b>/ 2026</b></span>
       </div>
 
       <main className="urxo-intro-main">
@@ -39,24 +51,47 @@ export default function WelcomeOnboarding() {
             <path className="urxo-intro-line" d="M0 235 L75 218 125 230 180 176 225 193 280 150 330 170 390 112 435 132 490 95 545 125 600 65 650 88 705 45 755 78 810 32 860 54 920 18 1000 28" />
             <path className="urxo-intro-trace" d="M0 235 L75 218 125 230 180 176 225 193 280 150 330 170 390 112 435 132 490 95 545 125 600 65 650 88 705 45 755 78 810 32 860 54 920 18 1000 28" />
             <circle className="urxo-intro-runner" r="5"><animateMotion dur="7s" repeatCount="indefinite" rotate="auto" path="M0 235 L75 218 125 230 180 176 225 193 280 150 330 170 390 112 435 132 490 95 545 125 600 65 650 88 705 45 755 78 810 32 860 54 920 18 1000 28" /></circle>
-            <circle className="urxo-intro-dot" cx="1000" cy="28" r="4" />
           </svg>
           <div className="urxo-intro-chart-label"><span>PRICE ACTION</span><span>HISTORICAL DATA · LIVE DECISIONS</span></div>
         </div>
 
-        <div className="urxo-intro-copy">
-          <div className="urxo-intro-kicker"><span /> YOUR EDGE STARTS WITH PRACTICE</div>
-          <h1 id="urxo-intro-title">Добро пожаловать<br /><em>в URXO.</em></h1>
-          <p className="urxo-intro-lead">Рынок уже оставил свой след. Теперь твоя очередь научиться его читать.</p>
-          <p className="urxo-intro-description">URXO — торговый тренажёр на исторических данных. Отрабатывай стратегии, принимай решения по графику и проверяй себя в условиях рынка — без риска реальными деньгами.</p>
+        <section className={"urxo-intro-scene " + (stage === 0 ? "is-active" : "")} aria-hidden={stage !== 0}>
+          <div className="urxo-intro-kicker"><span /> A NEW WAY TO PRACTICE</div>
+          <h1 id="urxo-intro-title">Добро пожаловать</h1>
+          <div className="urxo-intro-welcome-brand">в <em>URXO.</em></div>
+          <div className="urxo-intro-scene-index">01 <i /> 03</div>
+        </section>
+
+        <section className={"urxo-intro-scene urxo-intro-info " + (stage === 1 ? "is-active" : "")} aria-hidden={stage !== 1}>
+          <div className="urxo-intro-kicker"><span /> ТВОЯ ПРАКТИКА НАЧИНАЕТСЯ ЗДЕСЬ</div>
+          <h2>Рынок. Опыт. <em>Твой прогресс.</em></h2>
+          <p className="urxo-intro-info-lead">URXO — торговый тренажёр на исторических рыночных данных. Учись читать график и оттачивай торговые решения без риска реальными деньгами.</p>
+          <div className="urxo-intro-features">
+            <div><BarChart3 /><span><b>Реальная история</b><small>Работай с историческими движениями рынка</small></span></div>
+            <div><Crosshair /><span><b>Практика на графике</b><small>Открывай сделки, ставь стопы и тейки</small></span></div>
+            <div><LineChart /><span><b>Разбор результата</b><small>Анализируй сделки, статистику и прогресс</small></span></div>
+          </div>
+          <div className="urxo-intro-scene-index">02 <i /> 03</div>
+        </section>
+
+        <section className={"urxo-intro-scene urxo-intro-entry " + (stage === 2 ? "is-active" : "")} aria-hidden={stage !== 2}>
+          <div className="urxo-intro-kicker"><span /> ГОТОВ НАЧАТЬ?</div>
+          <h2>Твоя следующая<br /><em>сделка — это опыт.</em></h2>
+          <p className="urxo-intro-info-lead">Заходи в URXO. Выбирай рынок, анализируй график и тренируй собственную систему.</p>
           <button type="button" className="urxo-intro-cta" onClick={() => setEntered(true)}>
-            Начать практику <ArrowRight size={17} />
+            Войти в приложение <ArrowRight size={17} />
           </button>
-          <div className="urxo-intro-proof"><span>01 <b>ИЗУЧАЙ</b></span><i /><span>02 <b>ПРАКТИКУЙСЯ</b></span><i /><span>03 <b>АНАЛИЗИРУЙ</b></span></div>
-        </div>
+          <div className="urxo-intro-scene-index">03 <i /> 03</div>
+        </section>
       </main>
 
-      <div className="urxo-intro-bottom"><span>TRAIN YOUR PROCESS. NOT YOUR LUCK.</span><span>BUILT FOR DISCIPLINED TRADERS <b>●</b></span></div>
+      <div className="urxo-intro-bottom">
+        <span>TRAIN YOUR PROCESS. NOT YOUR LUCK.</span>
+        <div className="urxo-intro-progress" aria-label={"Этап " + (stage + 1) + " из 3"}>
+          {[0, 1, 2].map((item) => <i key={item} className={item <= stage ? "active" : ""} />)}
+        </div>
+        <span>BUILT FOR DISCIPLINED TRADERS <b>●</b></span>
+      </div>
     </div>
   );
 }
