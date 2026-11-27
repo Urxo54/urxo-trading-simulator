@@ -10,8 +10,8 @@ export default function WelcomeOnboarding() {
   const [entered, setEntered] = useState(false);
 
   useEffect(() => {
-    const introTimer = window.setTimeout(() => setStage(1), 3600);
-    const detailsTimer = window.setTimeout(() => setStage(2), 8900);
+    const introTimer = window.setTimeout(() => setStage(1), 5200);
+    const detailsTimer = window.setTimeout(() => setStage(2), 12200);
     return () => {
       window.clearTimeout(introTimer);
       window.clearTimeout(detailsTimer);
@@ -67,9 +67,8 @@ export default function WelcomeOnboarding() {
           <h2>Рынок. Опыт. <em>Твой прогресс.</em></h2>
           <p className="urxo-intro-info-lead">URXO — торговый тренажёр на исторических рыночных данных. Учись читать график и оттачивай торговые решения без риска реальными деньгами.</p>
           <div className="urxo-intro-features">
-            <div><BarChart3 /><span><b>Реальная история</b><small>Работай с историческими движениями рынка</small></span></div>
-            <div><Crosshair /><span><b>Практика на графике</b><small>Открывай сделки, ставь стопы и тейки</small></span></div>
-            <div><LineChart /><span><b>Разбор результата</b><small>Анализируй сделки, статистику и прогресс</small></span></div>
+            <div><BarChart3 /><span><b>Исторические данные</b><small>Изучай реальные движения рынка</small></span></div>
+            <div><Crosshair /><span><b>Практика сделок</b><small>Открывай позиции, выставляй стоп и тейк</small></span></div>
           </div>
           <div className="urxo-intro-scene-index">02 <i /> 03</div>
         </section>
