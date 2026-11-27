@@ -1,5 +1,6 @@
 
 import type { Metadata } from "next";
+import ThemeProvider from "@/components/theme-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,14 +8,13 @@ export const metadata: Metadata = {
   description: "Historical Market Trading Simulator",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+const themeScript = `(function(){try{var t=localStorage.getItem("urxo-theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}})()`;
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <body><ThemeProvider>{children}</ThemeProvider></body>
     </html>
   );
 }
