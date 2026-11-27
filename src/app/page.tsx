@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { readPointsAccount, type PointsAccount, type TradeHistoryItem } from "@/lib/points-account";
 
 import {
